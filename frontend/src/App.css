@@ -1,0 +1,20 @@
+/*My own custom bootstrap*/
+.sidebar-item {
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 6px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-item:hover {
+  background-color: var(--bs-primary);
+  color: white;
+}
+
+.sidebar-item:hover i {
+  color: white;
+}
