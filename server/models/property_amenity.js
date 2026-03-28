@@ -1,5 +1,5 @@
 export default (sequelize, DataTypes) => {
-  const PropertyImage = sequelize.define("PropertyImage", {
+  const PropertyAmenity = sequelize.define("PropertyAmenity", {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -15,18 +15,16 @@ export default (sequelize, DataTypes) => {
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     },
-    image_type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    image_url: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    display_order: {
+    amenity_id: {
       type: DataTypes.INTEGER,
-      defaultValue: 0,
+      allowNull: false,
+      references: {
+        model: "Amenities",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
   });
-  return PropertyImage;
+  return PropertyAmenity;
 };

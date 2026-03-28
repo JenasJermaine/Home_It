@@ -1,9 +1,19 @@
 export default (sequelize, DataTypes) => {
-  const PropertyImage = sequelize.define("PropertyImage", {
+  const Review = sequelize.define("Review", {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    reviewer_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "Users",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
     property_id: {
       type: DataTypes.INTEGER,
@@ -15,18 +25,14 @@ export default (sequelize, DataTypes) => {
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     },
-    image_type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    image_url: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    display_order: {
+    rating: {
       type: DataTypes.INTEGER,
-      defaultValue: 0,
+      allowNull: false,
+    },
+    review_text: {
+      type: DataTypes.TEXT,
+      allowNull: false,
     },
   });
-  return PropertyImage;
+  return Review;
 };

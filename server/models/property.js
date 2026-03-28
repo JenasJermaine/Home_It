@@ -5,6 +5,16 @@ export default (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    seller_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "Users",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: false,
@@ -70,6 +80,10 @@ export default (sequelize, DataTypes) => {
         min: -180,
         max: 180,
       },
+    },
+    predicted_price: {
+      type: DataTypes.DECIMAL(11, 2),
+      allowNull: false,
     },
     price: {
       type: DataTypes.DECIMAL(11, 2),

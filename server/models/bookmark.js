@@ -1,9 +1,19 @@
 export default (sequelize, DataTypes) => {
-  const PropertyImage = sequelize.define("PropertyImage", {
+  const Bookmark = sequelize.define("Bookmark", {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "Users",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
     property_id: {
       type: DataTypes.INTEGER,
@@ -15,18 +25,6 @@ export default (sequelize, DataTypes) => {
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     },
-    image_type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    image_url: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    display_order: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-    },
   });
-  return PropertyImage;
+  return Bookmark;
 };

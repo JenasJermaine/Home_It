@@ -1,5 +1,5 @@
 export default (sequelize, DataTypes) => {
-  const PropertyImage = sequelize.define("PropertyImage", {
+  const PriceEstimate = sequelize.define("PriceEstimate", {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -7,7 +7,7 @@ export default (sequelize, DataTypes) => {
     },
     property_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: "Properties",
         key: "id",
@@ -15,18 +15,18 @@ export default (sequelize, DataTypes) => {
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     },
-    image_type: {
+    source_type: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    image_url: {
-      type: DataTypes.STRING,
+    predicted_price: {
+      type: DataTypes.DECIMAL(11, 2),
       allowNull: false,
     },
-    display_order: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
+    input_features_json: {
+      type: DataTypes.JSON,
+      allowNull: false,
     },
   });
-  return PropertyImage;
+  return PriceEstimate;
 };
