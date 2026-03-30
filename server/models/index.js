@@ -1,25 +1,25 @@
-import { Sequelize } from 'sequelize';
-import config from '../config/config.js';
-import userModel from './user.js';
-import propertyModel from './property.js';
-import propertyImageModel from './property_image.js';
-import amenityModel from './amenity.js';
-import propertyAmenityModel from './property_amenity.js';
-import bookmarkModel from './bookmark.js';
-import priceEstimateModel from './price_estimate.js';
-import reviewModel from './review.js';
+import { Sequelize } from "sequelize";
+import config from "../config/config.js";
+import userModel from "./user.js";
+import propertyModel from "./property.js";
+import propertyImageModel from "./property_image.js";
+import amenityModel from "./amenity.js";
+import propertyAmenityModel from "./property_amenity.js";
+import bookmarkModel from "./bookmark.js";
+import priceEstimateModel from "./price_estimate.js";
+import reviewModel from "./review.js";
 
 // Create a new Sequelize instance to connect to the database.
 // This instance is the core of our database interactions.
 const sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    {
-        host: config.host,
-        dialect: config.dialect,
-        logging: config.logging
-    }
+  config.database,
+  config.username,
+  config.password,
+  {
+    host: config.host,
+    dialect: config.dialect,
+    logging: config.logging,
+  },
 );
 
 // Create an empty object to hold our database models and the Sequelize instance.
@@ -149,3 +149,4 @@ db.Review.belongsTo(db.Property, {
   as: "property",
 });
 
+export default db;
