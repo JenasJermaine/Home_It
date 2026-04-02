@@ -2,6 +2,14 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import db from "./models/index.js";
+import authRoutes from "./routes/auth.js";
+import propertyRoutes from "./routes/properties.js";
+import bookmarkRoutes from "./routes/bookmarks.js";
+import priceEstimateRoutes from "./routes/price_estimates.js";
+import reviewRoutes from "./routes/reviews.js";
+import amenityRoutes from "./routes/amenities.js";
+import userProfileRoutes from "./routes/user_profiles.js";
+
 
 const app = express();
 const PORT = 8090;
@@ -10,9 +18,14 @@ const PORT = 8090;
 app.use(cors());
 app.use(express.json());
 
-app.use("/", (req, res) => {
-  res.send("Hello World...");
-});
+//Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/properties', propertyRoutes);
+app.use('/api/bookmarks', bookmarkRoutes);
+app.use('/api/price_estimates', priceEstimateRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/amenities', amenityRoutes);
+app.use('/api/user_profiles', userProfileRoutes );
 
 //Error handling
 app.use((err, req, res, next) => {
