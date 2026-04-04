@@ -25,7 +25,9 @@ function AppContent({ isExpanded, setIsExpanded }) {
 
   return (
     <>
-      {!isAuthPage && <Sidebar isExpanded={isExpanded} setIsExpanded={setIsExpanded} />}
+      {!isAuthPage && (
+        <Sidebar isExpanded={isExpanded} setIsExpanded={setIsExpanded} />
+      )}
       <div
         style={{
           marginLeft: !isAuthPage ? sidebarWidth : "0",

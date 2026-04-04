@@ -18,3 +18,42 @@
 .sidebar-item:hover i {
   color: white;
 }
+
+/* Property Listing Form Styles */
+.step-number {
+  background-color: #e9ecef;
+  color: #6c757d;
+  border: 2px solid #e9ecef;
+}
+
+.step-number-active {
+  background-color: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  margin: 0 15px 20px;
+  background-color: #dee2e6;
+  transition: background-color 0.3s ease;
+}
+
+.step-line-active {
+  background-color: var(--bs-primary);
+}
+
+.amenity-card {
+  background-color: #fff;
+}
+
+.amenity-card:hover {
+  background-color: #f8f9fa;
+  border-color: var(--bs-primary) !important;
+}
+
+.form-check-input:checked ~ .form-check-label .amenity-card {
+  background-color: #e7f1ff;
+  border-color: var(--bs-primary) !important;
+}
