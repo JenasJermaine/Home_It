@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../models/index.js";
 import auth from "../middleware/auth.js";
+import upload from "../middleware/media_upload.js";
 
 const router = express.Router();
 
@@ -76,7 +77,7 @@ router.get("/", async (req, res) => {
       ],
       order: [
         ["createdAt", "DESC"],
-        [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"]
+        [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"],
       ],
     });
 
@@ -158,7 +159,9 @@ router.get("/:id", async (req, res) => {
           ],
         },
       ],
-      order: [[{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"]],
+      order: [
+        [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"],
+      ],
     });
 
     if (!property) {
@@ -217,7 +220,9 @@ router.post("/:id/amenities", auth, async (req, res) => {
 
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ error: "You can only add amenities to your own properties" });
+      return res
+        .status(403)
+        .json({ error: "You can only add amenities to your own properties" });
     }
 
     // Validate amenity_ids array
@@ -229,15 +234,17 @@ router.post("/:id/amenities", auth, async (req, res) => {
     if (req.body.amenity_ids.length > 0) {
       const validAmenities = await db.Amenity.findAll({
         where: { id: req.body.amenity_ids },
-        attributes: ['id']
+        attributes: ["id"],
       });
 
-      const validIds = validAmenities.map(amenity => amenity.id);
-      const invalidIds = req.body.amenity_ids.filter(id => !validIds.includes(id));
+      const validIds = validAmenities.map((amenity) => amenity.id);
+      const invalidIds = req.body.amenity_ids.filter(
+        (id) => !validIds.includes(id),
+      );
 
       if (invalidIds.length > 0) {
-        return res.status(400).json({ 
-          error: `Invalid amenity IDs: ${invalidIds.join(', ')}. These amenities do not exist.`
+        return res.status(400).json({
+          error: `Invalid amenity IDs: ${invalidIds.join(", ")}. These amenities do not exist.`,
         });
       }
     }
@@ -267,93 +274,102 @@ router.post("/:id/amenities", auth, async (req, res) => {
 });
 
 // Add images to a property
-router.post("/:id/images", auth, async (req, res) => {
-  try {
-    const property = await db.Property.findByPk(req.params.id);
+router.post(
+  "/:id/images",
+  auth,
+  upload.array("images", 15),
+  async (req, res) => {
+    try {
+      const property = await db.Property.findByPk(req.params.id);
 
-    if (!property) {
-      return res.status(404).json({ error: "Property not found" });
-    }
+      if (!property) {
+        return res.status(404).json({ error: "Property not found" });
+      }
 
-    // Check if user owns this property
-    if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ error: "You can only add images to your own properties" });
-    }
+      // Check if user owns this property
+      if (property.seller_id !== req.user.id) {
+        return res
+          .status(403)
+          .json({ error: "You can only add images to your own properties" });
+      }
 
-    // Validate images array
-    if (!req.body.images || !Array.isArray(req.body.images)) {
-      return res.status(400).json({ error: "images must be an array" });
-    }
+      // Validate if there are images present
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: "No images uploaded" });
+      }
 
-    // Create multiple property images
-    const imagePromises = req.body.images.map((image, index) => {
-      return db.PropertyImage.create({
-        property_id: property.id,
-        image_url: image.image_url,
-        image_type: image.image_type || "normal",
-        display_order: image.display_order || index,
+      // Create multiple property images
+      const imagePromises = req.files.map((file, index) =>
+        db.PropertyImage.create({
+          property_id: property.id,
+          image_url: `/uploads/properties/${file.filename}`,
+          image_type: req.body.image_type || "normal",
+          display_order: index,
+        }),
+      );
+
+      await Promise.all(imagePromises);
+
+      // Fetch complete property with all relationships for final response
+      const completeProperty = await db.Property.findByPk(property.id, {
+        attributes: [
+          "id",
+          "description",
+          "property_type",
+          "bedrooms",
+          "bathrooms",
+          "size_sqm",
+          "land_size_sqm",
+          "floors",
+          "year_built",
+          "condition",
+          "county",
+          "subcounty",
+          "latitude",
+          "longitude",
+          "price",
+          "status",
+          "createdAt",
+        ],
+        include: [
+          {
+            model: db.User,
+            as: "seller",
+            attributes: [
+              "id",
+              "username",
+              "email",
+              "first_name",
+              "last_name",
+              "profile_picture_url",
+            ],
+          },
+          {
+            model: db.PropertyImage,
+            as: "images",
+            attributes: ["id", "image_url", "image_type", "display_order"],
+          },
+          {
+            model: db.Amenity,
+            as: "amenities",
+            attributes: ["id", "name"],
+            through: { attributes: [] },
+          },
+        ],
+        order: [
+          [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"],
+        ],
       });
-    });
 
-    const createdImages = await Promise.all(imagePromises);
-
-    // Fetch complete property with all relationships for final response
-    const completeProperty = await db.Property.findByPk(property.id, {
-      attributes: [
-        "id",
-        "description",
-        "property_type",
-        "bedrooms",
-        "bathrooms",
-        "size_sqm",
-        "land_size_sqm",
-        "floors",
-        "year_built",
-        "condition",
-        "county",
-        "subcounty",
-        "latitude",
-        "longitude",
-        "price",
-        "status",
-        "createdAt",
-      ],
-      include: [
-        {
-          model: db.User,
-          as: "seller",
-          attributes: [
-            "id",
-            "username",
-            "email",
-            "first_name",
-            "last_name",
-            "profile_picture_url",
-          ],
-        },
-        {
-          model: db.PropertyImage,
-          as: "images",
-          attributes: ["id", "image_url", "image_type", "display_order"],
-        },
-        {
-          model: db.Amenity,
-          as: "amenities",
-          attributes: ["id", "name"],
-          through: { attributes: [] },
-        },
-      ],
-      order: [[{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"]],
-    });
-
-    res.status(201).json({
-      message: "Property listing completed successfully!",
-      data: completeProperty,
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
+      res.status(201).json({
+        message: "Images uploaded successfully!",
+        data: completeProperty,
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+);
 
 // Update basic property information
 router.put("/:id", auth, async (req, res) => {
@@ -366,8 +382,8 @@ router.put("/:id", auth, async (req, res) => {
 
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ 
-        error: "You can only update your own properties" 
+      return res.status(403).json({
+        error: "You can only update your own properties",
       });
     }
 
@@ -375,8 +391,12 @@ router.put("/:id", auth, async (req, res) => {
     await property.update({
       description: req.body.description || property.description,
       property_type: req.body.property_type || property.property_type,
-      bedrooms: req.body.bedrooms !== undefined ? req.body.bedrooms : property.bedrooms,
-      bathrooms: req.body.bathrooms !== undefined ? req.body.bathrooms : property.bathrooms,
+      bedrooms:
+        req.body.bedrooms !== undefined ? req.body.bedrooms : property.bedrooms,
+      bathrooms:
+        req.body.bathrooms !== undefined
+          ? req.body.bathrooms
+          : property.bathrooms,
       size_sqm: req.body.size_sqm || property.size_sqm,
       land_size_sqm: req.body.land_size_sqm || property.land_size_sqm,
       floors: req.body.floors !== undefined ? req.body.floors : property.floors,
@@ -384,8 +404,12 @@ router.put("/:id", auth, async (req, res) => {
       condition: req.body.condition || property.condition,
       county: req.body.county || property.county,
       subcounty: req.body.subcounty || property.subcounty,
-      latitude: req.body.latitude !== undefined ? req.body.latitude : property.latitude,
-      longitude: req.body.longitude !== undefined ? req.body.longitude : property.longitude,
+      latitude:
+        req.body.latitude !== undefined ? req.body.latitude : property.latitude,
+      longitude:
+        req.body.longitude !== undefined
+          ? req.body.longitude
+          : property.longitude,
       predicted_price: req.body.predicted_price || property.predicted_price,
       price: req.body.price || property.price,
       status: req.body.status || property.status,
@@ -411,8 +435,8 @@ router.put("/:id/amenities", auth, async (req, res) => {
 
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ 
-        error: "You can only update amenities for your own properties" 
+      return res.status(403).json({
+        error: "You can only update amenities for your own properties",
       });
     }
 
@@ -425,15 +449,17 @@ router.put("/:id/amenities", auth, async (req, res) => {
     if (req.body.amenity_ids.length > 0) {
       const validAmenities = await db.Amenity.findAll({
         where: { id: req.body.amenity_ids },
-        attributes: ['id']
+        attributes: ["id"],
       });
 
-      const validIds = validAmenities.map(amenity => amenity.id);
-      const invalidIds = req.body.amenity_ids.filter(id => !validIds.includes(id));
+      const validIds = validAmenities.map((amenity) => amenity.id);
+      const invalidIds = req.body.amenity_ids.filter(
+        (id) => !validIds.includes(id),
+      );
 
       if (invalidIds.length > 0) {
-        return res.status(400).json({ 
-          error: `Invalid amenity IDs: ${invalidIds.join(', ')}. These amenities do not exist.`
+        return res.status(400).json({
+          error: `Invalid amenity IDs: ${invalidIds.join(", ")}. These amenities do not exist.`,
         });
       }
     }
@@ -473,8 +499,8 @@ router.put("/:id/images", auth, async (req, res) => {
 
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ 
-        error: "You can only update images for your own properties" 
+      return res.status(403).json({
+        error: "You can only update images for your own properties",
       });
     }
 
@@ -485,7 +511,7 @@ router.put("/:id/images", auth, async (req, res) => {
 
     // Delete existing images for this property
     await db.PropertyImage.destroy({
-      where: { property_id: property.id }
+      where: { property_id: property.id },
     });
 
     // Create new images
@@ -494,7 +520,8 @@ router.put("/:id/images", auth, async (req, res) => {
         property_id: property.id,
         image_url: image.image_url,
         image_type: image.image_type || "general",
-        display_order: image.display_order !== undefined ? image.display_order : index,
+        display_order:
+          image.display_order !== undefined ? image.display_order : index,
       });
     });
 
@@ -520,8 +547,8 @@ router.delete("/:id", auth, async (req, res) => {
 
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
-      return res.status(403).json({ 
-        error: "You can only delete your own properties" 
+      return res.status(403).json({
+        error: "You can only delete your own properties",
       });
     }
 
