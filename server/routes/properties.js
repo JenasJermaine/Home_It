@@ -1,7 +1,13 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import db from "../models/index.js";
 import auth from "../middleware/auth.js";
 import upload from "../middleware/media_upload.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -298,12 +304,20 @@ router.post(
         return res.status(400).json({ error: "No images uploaded" });
       }
 
-      // Create multiple property images
+      // Parse image types from request body (sent as JSON array)
+      let imageTypes = [];
+      if (req.body.image_types) {
+        imageTypes = typeof req.body.image_types === "string" 
+          ? JSON.parse(req.body.image_types) 
+          : req.body.image_types;
+      }
+
+      // Create multiple property images with individual types
       const imagePromises = req.files.map((file, index) =>
         db.PropertyImage.create({
           property_id: property.id,
           image_url: `/uploads/properties/${file.filename}`,
-          image_type: req.body.image_type || "normal",
+          image_type: imageTypes[index] || "normal",
           display_order: index,
         }),
       );
@@ -488,8 +502,127 @@ router.put("/:id/amenities", auth, async (req, res) => {
   }
 });
 
-// Update property images
-router.put("/:id/images", auth, async (req, res) => {
+// Add images to a property (does NOT delete existing images)
+router.put(
+  "/:id/images",
+  auth,
+  upload.array("images", 15),
+  async (req, res) => {
+    try {
+      const property = await db.Property.findByPk(req.params.id);
+
+      if (!property) {
+        return res.status(404).json({ error: "Property not found" });
+      }
+
+      // Check if user owns this property
+      if (property.seller_id !== req.user.id) {
+        return res.status(403).json({
+          error: "You can only add images to your own properties",
+        });
+      }
+
+      // Validate if there are images present
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: "No images uploaded" });
+      }
+
+      // Get the current count of images to set display_order
+      const existingImages = await db.PropertyImage.count({
+        where: { property_id: property.id },
+      });
+
+      // Validate total images don't exceed 15
+      const totalImages = existingImages + req.files.length;
+      if (totalImages > 15) {
+        return res.status(400).json({
+          error: `Cannot add ${req.files.length} image(s). You have ${existingImages} existing image(s). Maximum allowed is 15 images total. You can add up to ${15 - existingImages} more image(s).`,
+        });
+      }
+
+      // Parse image types from request body (sent as JSON array)
+      let imageTypes = [];
+      if (req.body.image_types) {
+        imageTypes = typeof req.body.image_types === "string" 
+          ? JSON.parse(req.body.image_types) 
+          : req.body.image_types;
+      }
+
+      // Create new images from uploaded files with individual types (adds to existing)
+      const imagePromises = req.files.map((file, index) =>
+        db.PropertyImage.create({
+          property_id: property.id,
+          image_url: `/uploads/properties/${file.filename}`,
+          image_type: imageTypes[index] || "normal",
+          display_order: existingImages + index,
+        }),
+      );
+
+      await Promise.all(imagePromises);
+
+      // Fetch complete property with all relationships for final response
+      const completeProperty = await db.Property.findByPk(property.id, {
+        attributes: [
+          "id",
+          "description",
+          "property_type",
+          "bedrooms",
+          "bathrooms",
+          "size_sqm",
+          "land_size_sqm",
+          "floors",
+          "year_built",
+          "condition",
+          "county",
+          "subcounty",
+          "latitude",
+          "longitude",
+          "price",
+          "status",
+          "createdAt",
+        ],
+        include: [
+          {
+            model: db.User,
+            as: "seller",
+            attributes: [
+              "id",
+              "username",
+              "email",
+              "first_name",
+              "last_name",
+              "profile_picture_url",
+            ],
+          },
+          {
+            model: db.PropertyImage,
+            as: "images",
+            attributes: ["id", "image_url", "image_type", "display_order"],
+          },
+          {
+            model: db.Amenity,
+            as: "amenities",
+            attributes: ["id", "name"],
+            through: { attributes: [] },
+          },
+        ],
+        order: [
+          [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"],
+        ],
+      });
+
+      res.status(200).json({
+        message: `${req.files.length} image(s) added successfully!`,
+        data: completeProperty,
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+);
+
+// Delete a specific image by ID
+router.delete("/:id/images/:imageId", auth, async (req, res) => {
   try {
     const property = await db.Property.findByPk(req.params.id);
 
@@ -500,36 +633,80 @@ router.put("/:id/images", auth, async (req, res) => {
     // Check if user owns this property
     if (property.seller_id !== req.user.id) {
       return res.status(403).json({
-        error: "You can only update images for your own properties",
+        error: "You can only delete images from your own properties",
       });
     }
 
-    // Validate images array
-    if (!req.body.images || !Array.isArray(req.body.images)) {
-      return res.status(400).json({ error: "images must be an array" });
+    // Find the image
+    const image = await db.PropertyImage.findByPk(req.params.imageId);
+
+    if (!image) {
+      return res.status(404).json({ error: "Image not found" });
     }
 
-    // Delete existing images for this property
+    // Verify image belongs to this property
+    if (image.property_id !== property.id) {
+      return res.status(403).json({ error: "This image does not belong to this property" });
+    }
+
+    // Extract filename from image_url (e.g., "/uploads/properties/filename.jpg" -> "filename.jpg")
+    const filename = path.basename(image.image_url);
+    const filePath = path.join(__dirname, "..", "uploads", "properties", filename);
+
+    // Delete physical file from disk
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Delete image record from database
+    await image.destroy();
+
+    res.status(200).json({
+      message: "Image deleted successfully",
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete all images for a property
+router.delete("/:id/images", auth, async (req, res) => {
+  try {
+    const property = await db.Property.findByPk(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({ error: "Property not found" });
+    }
+
+    // Check if user owns this property
+    if (property.seller_id !== req.user.id) {
+      return res.status(403).json({
+        error: "You can only delete images from your own properties",
+      });
+    }
+
+    // Get all images for this property
+    const images = await db.PropertyImage.findAll({
+      where: { property_id: property.id },
+    });
+
+    // Delete physical files from disk
+    images.forEach((image) => {
+      const filename = path.basename(image.image_url);
+      const filePath = path.join(__dirname, "..", "uploads", "properties", filename);
+
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    // Delete all image records from database
     await db.PropertyImage.destroy({
       where: { property_id: property.id },
     });
 
-    // Create new images
-    const imagePromises = req.body.images.map((image, index) => {
-      return db.PropertyImage.create({
-        property_id: property.id,
-        image_url: image.image_url,
-        image_type: image.image_type || "general",
-        display_order:
-          image.display_order !== undefined ? image.display_order : index,
-      });
-    });
-
-    const updatedImages = await Promise.all(imagePromises);
-
     res.status(200).json({
-      message: "Images updated successfully",
-      data: updatedImages,
+      message: `${images.length} image(s) deleted successfully`,
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

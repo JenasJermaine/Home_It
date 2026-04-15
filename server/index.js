@@ -35,7 +35,10 @@ app.use("/api/user_profiles", userProfileRoutes);
 //Error handling
 app.use((err, req, res, next) => {
   console.log(err.stack);
-  res.send(500).send("Something broke" + err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(500).json({ error: err.message || "Something broke" });
 });
 
 db.sequelize
