@@ -57,3 +57,43 @@
   background-color: #e7f1ff;
   border-color: var(--bs-primary) !important;
 }
+
+/* Profile Page Styles */
+.profile-page-bg {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 45%);
+}
+
+.profile-panel {
+  background-color: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 10px 25px rgba(13, 110, 253, 0.06);
+}
+
+.profile-avatar-frame {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(0, 102, 255, 0.25);
+  background: #eef4ff;
+}
+
+.profile-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d6efd;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.86rem;
+}

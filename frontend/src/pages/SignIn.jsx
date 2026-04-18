@@ -1,15 +1,28 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { login } from "../api/apiService";
 
 const SignInPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await login({ email, password });
+      localStorage.setItem("token", res.data.token);
+      navigate("/");
+    } catch (error) {
+      setError(error.response?.data?.error || "Log-In failed");
+    }
+  };
 
   return (
     <div className="d-flex flex-row min-vh-100 ">
       <div className="container d-flex flex-column w-50 justify-content-center align-items-center">
-        <form className="w-75" action="">
+        <form className="w-75" onSubmit={handleSubmit}>
           <div>
             <img
               src="/logo/HomeIt_Logo.png"
@@ -21,6 +34,7 @@ const SignInPage = () => {
             <p className="fw-semibold fs-2">Welcome Back!</p>
             <p className="">Enter your credentials to access your account</p>
           </div>
+          {error && <div className="alert alert-danger rounded-4">{error}</div>}
           <div className="mt-4">
             <label className="fw-semibold p-1" htmlFor="">
               Email address
@@ -30,6 +44,8 @@ const SignInPage = () => {
               className="form-control mb-4 rounded-4"
               type="email"
               name="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
               required
             />
@@ -43,6 +59,8 @@ const SignInPage = () => {
               className="form-control mb-4 rounded-4"
               type="password"
               name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
             />

@@ -147,7 +147,7 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
                   src="/images/House1.jpg"
                   alt="profile picture"
                   className="rounded-circle"
-                  style={{ width: "42px", height: "42px" }}
+                  style={{ width: "38px", height: "38px" }}
                 />
                 {isExpanded && <p className="m-0">John Doe</p>}
               </Link>
