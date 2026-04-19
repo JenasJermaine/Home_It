@@ -187,21 +187,21 @@ const ProfilePage = () => {
                   ? `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
                   : profile?.username}
               </h5>
-              <p className="text-muted mb-0">@{profile?.username}</p>
+              <p className="mb-0 text-muted">@{profile?.username}</p>
             </div>
 
             <div className="d-flex gap-2 mb-3 flex-wrap justify-content-center">
-              <span className="profile-chip border rounded-4 border-primary text-body-secondary">
+              <span className="profile-chip border rounded-4 border-primary text-primary small">
                 <i
                   className="bi bi-envelope me-2 "
-                  style={{ fontSize: "20px", color: "black" }}
+                  style={{ fontSize: "20px"}}
                 />
                 {profile?.email}
               </span>
-              <span className="profile-chip border rounded-4 border-primary text-body-secondary">
+              <span className="profile-chip border rounded-4 border-primary text-primary small">
                 <i
                   className="bi bi-calendar-event me-2"
-                  style={{ fontSize: "20px", color: "black" }}
+                  style={{ fontSize: "20px"}}
                 />
                 Joined {new Date(profile?.createdAt).toLocaleDateString()}
               </span>

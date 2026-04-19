@@ -1,7 +1,40 @@
 import { Link } from "react-router-dom";
+import { buildMediaUrl, getMyProfile } from "../api/apiService";
+import { useEffect, useMemo, useState } from "react";
 
 const Sidebar = ({ isExpanded, setIsExpanded }) => {
-  const isAuthenticated = true;
+  const isAuthenticated = localStorage.getItem("token");
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfile(null);
+      return;
+    }
+
+    const loadProfile = async () => {
+      try {
+        const response = await getMyProfile();
+        const user = response.data?.data;
+        setProfile(user || null);
+      } catch {
+        setProfile(null);
+      }
+    };
+
+    loadProfile();
+  }, [isAuthenticated]);
+
+  const profileUrl = useMemo(
+    () => buildMediaUrl(profile?.profile_picture_url || ""),
+    [profile?.profile_picture_url],
+  );
+
+  const profileName = useMemo(() => {
+    if (!profile) return "Profile";
+    const fullName = `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
+    return fullName || profile.username || "Profile";
+  }, [profile]);
 
   const toggleSidebar = () => {
     setIsExpanded(!isExpanded);
@@ -36,7 +69,10 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
             }}
           >
             {isExpanded ? (
-              <i className="bi bi-chevron-left" style={{ fontSize: "17px" }}></i>
+              <i
+                className="bi bi-chevron-left"
+                style={{ fontSize: "17px" }}
+              ></i>
             ) : (
               <i
                 className="bi bi-chevron-right"
@@ -89,7 +125,10 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
                 to="/Sell"
                 className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
               >
-                <i className="bi bi-cash-stack" style={{ fontSize: "20px" }}></i>
+                <i
+                  className="bi bi-cash-stack"
+                  style={{ fontSize: "20px" }}
+                ></i>
                 {isExpanded && <p className="m-0">Sell</p>}
               </Link>
               <Link
@@ -103,10 +142,7 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
                 to="/Priceestimator"
                 className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
               >
-                <i
-                  className="bi bi-graph-up"
-                  style={{ fontSize: "20px" }}
-                ></i>
+                <i className="bi bi-graph-up" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">Price Estimator</p>}
               </Link>
               <Link
@@ -143,13 +179,22 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
                 to="/Profile"
                 className="d-flex align-items-center gap-2 text-decoration-none text-reset"
               >
-                <img
-                  src="/images/House1.jpg"
-                  alt="profile picture"
-                  className="rounded-circle"
-                  style={{ width: "38px", height: "38px" }}
-                />
-                {isExpanded && <p className="m-0">John Doe</p>}
+                {profileUrl ? (
+                  <img
+                    src={profileUrl}
+                    alt="Profile"
+                    className="rounded-circle"
+                    style={{ width: "38px", height: "38px", objectFit: "cover" }}
+                  />
+                ) : (
+                  <div
+                    className="rounded-circle d-flex align-items-center justify-content-center border border-primary"
+                    style={{ width: "38px", height: "38px" }}
+                  >
+                    <i className="bi bi-person-fill text-primary" />
+                  </div>
+                )}
+                {isExpanded && <p className="m-0">{profileName}</p>}
               </Link>
             </div>
           </div>
@@ -221,7 +266,6 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
             {isExpanded && <p className="m-0">Home</p>}
           </Link>
         </div>
-        
       )}
     </>
   );

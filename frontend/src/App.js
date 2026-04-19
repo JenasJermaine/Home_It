@@ -10,6 +10,7 @@ import HomePage from "./pages/HomePage";
 import BuyPage from "./pages/Buy";
 import SellPage from "./pages/Sell";
 import MyListingsPage from "./pages/MyListings";
+import MyListingDetailsPage from "./pages/MyListingDetails";
 import PriceEstimatorPage from "./pages/PriceEstimator";
 import BookmarksPage from "./pages/Bookmarks";
 import HelpPage from "./pages/Help";
@@ -45,6 +46,7 @@ function AppContent({ isExpanded, setIsExpanded }) {
           <Route path="/Buy" element={<BuyPage />} />
           <Route path="/Sell" element={<SellPage />} />
           <Route path="/Mylistings" element={<MyListingsPage />} />
+          <Route path="/Mylistings/:id" element={<MyListingDetailsPage />} />
           <Route path="/Priceestimator" element={<PriceEstimatorPage />} />
           <Route path="/Bookmarks" element={<BookmarksPage />} />
           <Route path="/Help" element={<HelpPage />} />
