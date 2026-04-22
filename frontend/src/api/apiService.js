@@ -75,6 +75,7 @@ export const login = (loginBody) => postJson('/auth/login', loginBody);
 
 //PROPERTIES API
 export const getAllProperties = (params) => api.get('/properties', { params });
+export const getFilteredProperties = (params) => api.get('/properties/filters', { params });
 export const getPropertyById= (propertyId) => api.get(`/properties/${propertyId}`);
 export const addBasicHouseInfo= (basicInfoBody) => postJson('/properties', basicInfoBody);
 export const addHouseAmenities= (propertyId, houseAmenitiesBody) => postJson(`/properties/${propertyId}/amenities`, houseAmenitiesBody);

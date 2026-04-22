@@ -2,6 +2,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { Op } from "sequelize";
 import db from "../models/index.js";
 import auth from "../middleware/auth.js";
 import upload from "../middleware/media_upload.js";
@@ -96,6 +97,188 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     res.status(500).send({ error: error.message });
+  }
+});
+
+// Filter properties by query parameters
+router.get("/filters", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const toNumber = (value) => {
+      if (value === undefined || value === null || value === "") return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const addRangeFilter = (field, minValue, maxValue, where) => {
+      const min = toNumber(minValue);
+      const max = toNumber(maxValue);
+      if (min !== null && max !== null) {
+        where[field] = { [Op.between]: [min, max] };
+      } else if (min !== null) {
+        where[field] = { [Op.gte]: min };
+      } else if (max !== null) {
+        where[field] = { [Op.lte]: max };
+      }
+    };
+
+    const where = {};
+
+    if (req.query.property_type) {
+      where.property_type = req.query.property_type;
+    }
+
+    if (req.query.county) {
+      where.county = { [Op.like]: `%${req.query.county}%` };
+    }
+
+    if (req.query.subcounty) {
+      where.subcounty = { [Op.like]: `%${req.query.subcounty}%` };
+    }
+
+    if (req.query.location) {
+      where[Op.or] = [
+        { county: { [Op.like]: `%${req.query.location}%` } },
+        { subcounty: { [Op.like]: `%${req.query.location}%` } },
+      ];
+    }
+
+    addRangeFilter("bedrooms", req.query.min_bedrooms, req.query.max_bedrooms, where);
+    addRangeFilter("bathrooms", req.query.min_bathrooms, req.query.max_bathrooms, where);
+    addRangeFilter("size_sqm", req.query.min_size_sqm, req.query.max_size_sqm, where);
+    addRangeFilter(
+      "land_size_sqm",
+      req.query.min_land_size_sqm,
+      req.query.max_land_size_sqm,
+      where,
+    );
+    addRangeFilter("floors", req.query.min_floors, req.query.max_floors, where);
+    addRangeFilter("price", req.query.min_price, req.query.max_price, where);
+
+    const lat = toNumber(req.query.lat);
+    const lng = toNumber(req.query.lng);
+    if (lat !== null && lng !== null) {
+      const radiusKm = toNumber(req.query.radius_km) ?? 5;
+      const latDelta = radiusKm / 111;
+      const lngDelta = radiusKm / (111 * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
+
+      where.latitude = { [Op.between]: [lat - latDelta, lat + latDelta] };
+      where.longitude = { [Op.between]: [lng - lngDelta, lng + lngDelta] };
+    }
+
+    let amenityIds = [];
+    if (req.query.amenity_ids) {
+      if (Array.isArray(req.query.amenity_ids)) {
+        amenityIds = req.query.amenity_ids.map((id) => Number(id)).filter(Number.isInteger);
+      } else {
+        amenityIds = String(req.query.amenity_ids)
+          .split(",")
+          .map((id) => Number(id.trim()))
+          .filter(Number.isInteger);
+      }
+    }
+
+    if (amenityIds.length > 0) {
+      const matchingPropertyIds = await db.PropertyAmenity.findAll({
+        where: { amenity_id: amenityIds },
+        attributes: ["property_id"],
+        group: ["property_id"],
+        having: db.sequelize.where(
+          db.sequelize.fn("COUNT", db.sequelize.fn("DISTINCT", db.sequelize.col("amenity_id"))),
+          amenityIds.length,
+        ),
+      });
+
+      const propertyIds = matchingPropertyIds.map((row) => row.property_id);
+      if (propertyIds.length === 0) {
+        return res.status(200).json({
+          total: 0,
+          page,
+          limit,
+          pages: 0,
+          data: [],
+        });
+      }
+      where.id = { [Op.in]: propertyIds };
+    }
+
+    const properties = await db.Property.findAndCountAll({
+      where,
+      offset,
+      limit,
+      distinct: true,
+      attributes: [
+        "id",
+        "description",
+        "property_type",
+        "bedrooms",
+        "bathrooms",
+        "size_sqm",
+        "land_size_sqm",
+        "floors",
+        "price",
+        "status",
+        "county",
+        "subcounty",
+        "latitude",
+        "longitude",
+        "createdAt",
+      ],
+      include: [
+        {
+          model: db.User,
+          as: "seller",
+          attributes: [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "profile_picture_url",
+          ],
+        },
+        {
+          model: db.PropertyImage,
+          as: "images",
+          attributes: ["id", "image_url", "image_type", "display_order"],
+        },
+        {
+          model: db.Amenity,
+          as: "amenities",
+          attributes: ["id", "name"],
+          through: { attributes: [] },
+        },
+        {
+          model: db.Review,
+          as: "reviews",
+          attributes: ["id", "rating", "review_text"],
+          include: [
+            {
+              model: db.User,
+              as: "reviewer",
+              attributes: ["id", "username", "first_name", "profile_picture_url"],
+            },
+          ],
+        },
+      ],
+      order: [
+        ["createdAt", "DESC"],
+        [{ model: db.PropertyImage, as: "images" }, "display_order", "ASC"],
+      ],
+    });
+
+    res.status(200).json({
+      total: properties.count,
+      page,
+      limit,
+      pages: Math.ceil(properties.count / limit),
+      data: properties.rows,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
