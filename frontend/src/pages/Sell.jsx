@@ -42,7 +42,10 @@ const SellPage = () => {
     selectedAmenities: [],
   });
 
-  const [markerPosition, setMarkerPosition] = useState([DEFAULT_LAT, DEFAULT_LNG]);
+  const [markerPosition, setMarkerPosition] = useState([
+    DEFAULT_LAT,
+    DEFAULT_LNG,
+  ]);
   const [images, setImages] = useState([]);
 
   const MapMarker = useMemo(
@@ -205,12 +208,15 @@ const SellPage = () => {
         subcounty: formData.subcounty,
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        predicted_price: Number(formData.predicted_price || formData.price || 0),
+        predicted_price: Number(
+          formData.predicted_price || formData.price || 0,
+        ),
         price: Number(formData.price),
         status: formData.status,
       };
 
-      const createPropertyResponse = await addBasicHouseInfo(basicPropertyPayload);
+      const createPropertyResponse =
+        await addBasicHouseInfo(basicPropertyPayload);
       const propertyId = createPropertyResponse.data?.property_id;
 
       if (!propertyId) {
@@ -257,7 +263,9 @@ const SellPage = () => {
       setMarkerPosition([DEFAULT_LAT, DEFAULT_LNG]);
       navigate("/Mylistings");
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to submit listing.");
+      setError(
+        err.response?.data?.error || err.message || "Failed to submit listing.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -289,7 +297,9 @@ const SellPage = () => {
                     </div>
                     <div className="small text-center">Basic Info</div>
                   </div>
-                  <div className={`step-line ${step >= 2 ? "step-line-active" : ""}`}></div>
+                  <div
+                    className={`step-line ${step >= 2 ? "step-line-active" : ""}`}
+                  ></div>
                   <div className="step-indicator-item">
                     <div
                       className={`step-number ${step >= 2 ? "step-number-active" : ""}`}
@@ -308,7 +318,9 @@ const SellPage = () => {
                     </div>
                     <div className="small text-center">Amenities</div>
                   </div>
-                  <div className={`step-line ${step >= 3 ? "step-line-active" : ""}`}></div>
+                  <div
+                    className={`step-line ${step >= 3 ? "step-line-active" : ""}`}
+                  ></div>
                   <div className="step-indicator-item">
                     <div
                       className={`step-number ${step >= 3 ? "step-number-active" : ""}`}
@@ -349,7 +361,8 @@ const SellPage = () => {
 
                       <div className="mb-3">
                         <label className="form-label fw-semibold">
-                          Property Description <span className="text-danger">*</span>
+                          Property Description{" "}
+                          <span className="text-danger">*</span>
                         </label>
                         <textarea
                           className="form-control rounded-4"
@@ -394,7 +407,8 @@ const SellPage = () => {
                             required
                           >
                             <option value="For Sale">For Sale</option>
-                            <option value="For Rent">For Rent</option>
+                            <option value="For Rent">Sold</option>
+                            <option value="For Rent">Pending</option>
                           </select>
                         </div>
                       </div>
@@ -452,7 +466,8 @@ const SellPage = () => {
                       <div className="row">
                         <div className="col-md-6 mb-3">
                           <label className="form-label fw-semibold">
-                            Property Size (sqm) <span className="text-danger">*</span>
+                            Property Size (sqm){" "}
+                            <span className="text-danger">*</span>
                           </label>
                           <input
                             type="number"
@@ -469,7 +484,8 @@ const SellPage = () => {
 
                         <div className="col-md-6 mb-3">
                           <label className="form-label fw-semibold">
-                            Land Size (sqm) <span className="text-danger">*</span>
+                            Land Size (sqm){" "}
+                            <span className="text-danger">*</span>
                           </label>
                           <input
                             type="number"
@@ -552,16 +568,26 @@ const SellPage = () => {
                           >
                             <option value="">Select Sub-County</option>
                             <option value="Westlands">Westlands</option>
-                            <option value="Dagoretti North">Dagoretti North</option>
-                            <option value="Dagoretti South">Dagoretti South</option>
+                            <option value="Dagoretti North">
+                              Dagoretti North
+                            </option>
+                            <option value="Dagoretti South">
+                              Dagoretti South
+                            </option>
                             <option value="Langata">Langata</option>
                             <option value="Kibra">Kibra</option>
                             <option value="Roysambu">Roysambu</option>
                             <option value="Kasarani">Kasarani</option>
                             <option value="Ruaraka">Ruaraka</option>
-                            <option value="Embakasi South">Embakasi South</option>
-                            <option value="Embakasi North">Embakasi North</option>
-                            <option value="Embakasi Central">Embakasi Central</option>
+                            <option value="Embakasi South">
+                              Embakasi South
+                            </option>
+                            <option value="Embakasi North">
+                              Embakasi North
+                            </option>
+                            <option value="Embakasi Central">
+                              Embakasi Central
+                            </option>
                             <option value="Embakasi East">Embakasi East</option>
                             <option value="Embakasi West">Embakasi West</option>
                             <option value="Makadara">Makadara</option>
@@ -610,7 +636,8 @@ const SellPage = () => {
 
                       <div className="mb-4">
                         <label className="form-label fw-semibold">
-                          Select Property Location <span className="text-danger">*</span>
+                          Select Property Location{" "}
+                          <span className="text-danger">*</span>
                         </label>
                         <p className="text-primary small mb-2">
                           <i className="bi bi-info-circle me-1 text-primary"></i>
@@ -640,7 +667,8 @@ const SellPage = () => {
                           </MapContainer>
                         </div>
                         <small className="text-primary small">
-                          Current location: {Number(formData.latitude).toFixed(6)},{" "}
+                          Current location:{" "}
+                          {Number(formData.latitude).toFixed(6)},{" "}
                           {Number(formData.longitude).toFixed(6)}
                         </small>
                       </div>
@@ -653,18 +681,23 @@ const SellPage = () => {
                           <input
                             type="text"
                             className="form-control rounded-4 bg-light"
-                            value={formData.predicted_price || "Will use listing price"}
+                            value={
+                              formData.predicted_price ||
+                              "Will use listing price"
+                            }
                             readOnly
                             disabled
                           />
                           <small className="text-primary">
-                            Sent to backend; defaults to your listing price for now.
+                            Sent to backend; defaults to your listing price for
+                            now.
                           </small>
                         </div>
 
                         <div className="col-md-6 mb-3">
                           <label className="form-label fw-semibold">
-                            Listing Price (KES) <span className="text-danger">*</span>
+                            Listing Price (KES){" "}
+                            <span className="text-danger">*</span>
                           </label>
                           <input
                             type="number"
@@ -677,7 +710,9 @@ const SellPage = () => {
                             onChange={handleInputChange}
                             required
                           />
-                          <small className="text-primary">Your asking price</small>
+                          <small className="text-primary">
+                            Your asking price
+                          </small>
                         </div>
                       </div>
                     </div>
@@ -692,14 +727,19 @@ const SellPage = () => {
 
                       <div className="row">
                         {amenities.map((amenity) => (
-                          <div key={amenity.id} className="col-md-6 col-lg-4 mb-3">
+                          <div
+                            key={amenity.id}
+                            className="col-md-6 col-lg-4 mb-3"
+                          >
                             <div className="form-check">
                               <input
                                 className="form-check-input"
                                 type="checkbox"
                                 id={`amenity-${amenity.id}`}
                                 onChange={() => handleAmenityToggle(amenity.id)}
-                                checked={formData.selectedAmenities.includes(amenity.id)}
+                                checked={formData.selectedAmenities.includes(
+                                  amenity.id,
+                                )}
                               />
                               <label
                                 className="form-check-label w-100"
@@ -707,7 +747,10 @@ const SellPage = () => {
                               >
                                 <div
                                   className="amenity-card p-3 rounded-3 border"
-                                  style={{ cursor: "pointer", transition: "all 0.2s" }}
+                                  style={{
+                                    cursor: "pointer",
+                                    transition: "all 0.2s",
+                                  }}
                                 >
                                   {amenity.name}
                                 </div>
@@ -749,8 +792,8 @@ const SellPage = () => {
                             </span>
                           </p>
                           <p className="text-muted small">
-                            Supported formats: JPEG, PNG, WEBP, GIF, TIFF, HEIC, HEIF
-                            (Max 50MB per image)
+                            Supported formats: JPEG, PNG, WEBP, GIF, TIFF, HEIC,
+                            HEIF (Max 50MB per image)
                           </p>
                           <input
                             type="file"
@@ -766,7 +809,9 @@ const SellPage = () => {
                             style={{ cursor: "pointer" }}
                           >
                             <i className="bi bi-upload me-2"></i>
-                            {images.length > 0 ? "Add More Images" : "Choose Images"}
+                            {images.length > 0
+                              ? "Add More Images"
+                              : "Choose Images"}
                           </label>
                         </div>
                       </div>
@@ -797,7 +842,9 @@ const SellPage = () => {
                               />
                               <div className="card-body">
                                 <div className="d-flex justify-content-between align-items-center mb-2">
-                                  <small className="text-muted">{image.file.name}</small>
+                                  <small className="text-muted">
+                                    {image.file.name}
+                                  </small>
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-danger"
@@ -827,8 +874,9 @@ const SellPage = () => {
 
                       <div className="alert alert-warning" role="alert">
                         <i className="bi bi-exclamation-triangle me-2"></i>
-                        The backend pairs image types by index: first selected image
-                        gets first type, second gets second type, and so on.
+                        The backend pairs image types by index: first selected
+                        image gets first type, second gets second type, and so
+                        on.
                       </div>
                     </div>
                   )}

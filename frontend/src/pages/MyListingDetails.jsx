@@ -34,7 +34,10 @@ const MyListingDetailsPage = () => {
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [newImages, setNewImages] = useState([]);
-  const [markerPosition, setMarkerPosition] = useState([DEFAULT_LAT, DEFAULT_LNG]);
+  const [markerPosition, setMarkerPosition] = useState([
+    DEFAULT_LAT,
+    DEFAULT_LNG,
+  ]);
 
   const [formData, setFormData] = useState({
     description: "",
@@ -56,9 +59,13 @@ const MyListingDetailsPage = () => {
   });
 
   const applyPropertyToState = (property) => {
-    setCoverImage(buildMediaUrl(property.images?.[0]?.image_url) || "/images/House1.jpg");
+    setCoverImage(
+      buildMediaUrl(property.images?.[0]?.image_url) || "/images/House1.jpg",
+    );
     setExistingImages(property.images || []);
-    setSelectedAmenities((property.amenities || []).map((amenity) => amenity.id));
+    setSelectedAmenities(
+      (property.amenities || []).map((amenity) => amenity.id),
+    );
 
     setFormData({
       description: property.description || "",
@@ -97,11 +104,12 @@ const MyListingDetailsPage = () => {
   useEffect(() => {
     const loadProperty = async () => {
       try {
-        const [profileResponse, propertyResponse, amenitiesResponse] = await Promise.all([
-          getMyProfile(),
-          getPropertyById(id),
-          getAllAmenities(),
-        ]);
+        const [profileResponse, propertyResponse, amenitiesResponse] =
+          await Promise.all([
+            getMyProfile(),
+            getPropertyById(id),
+            getAllAmenities(),
+          ]);
 
         const currentUserId = profileResponse.data?.data?.id;
         const property = propertyResponse.data?.data;
@@ -119,7 +127,9 @@ const MyListingDetailsPage = () => {
         setAllAmenities(amenitiesResponse.data?.data || []);
         applyPropertyToState(property);
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to load property details.");
+        setError(
+          err.response?.data?.error || "Failed to load property details.",
+        );
       } finally {
         setLoading(false);
       }
@@ -193,7 +203,9 @@ const MyListingDetailsPage = () => {
         subcounty: formData.subcounty,
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        predicted_price: Number(formData.predicted_price || formData.price || 0),
+        predicted_price: Number(
+          formData.predicted_price || formData.price || 0,
+        ),
         price: Number(formData.price),
         status: formData.status,
       });
@@ -234,7 +246,10 @@ const MyListingDetailsPage = () => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
 
-    if (existingImages.length + newImages.length + selectedFiles.length > MAX_TOTAL_IMAGES) {
+    if (
+      existingImages.length + newImages.length + selectedFiles.length >
+      MAX_TOTAL_IMAGES
+    ) {
       setError(
         `Maximum ${MAX_TOTAL_IMAGES} images allowed. You currently have ${existingImages.length + newImages.length}.`,
       );
@@ -349,10 +364,15 @@ const MyListingDetailsPage = () => {
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
             <h2 className="fw-bold mb-1">Edit Listing</h2>
-            <p className="text-muted m-0">Update details, amenities and images.</p>
+            <p className="text-muted m-0">
+              Update details, amenities and images.
+            </p>
           </div>
           <Link to="/Mylistings">
-            <i className="bi bi-arrow-left me-2 text-primary" style={{ fontSize: "30px" }}></i>
+            <i
+              className="bi bi-arrow-left me-2 text-primary"
+              style={{ fontSize: "30px" }}
+            ></i>
           </Link>
         </div>
 
@@ -390,7 +410,9 @@ const MyListingDetailsPage = () => {
                 <div className="card-body">
                   <form onSubmit={handleSubmit}>
                     <div className="mb-3">
-                      <label className="form-label fw-semibold">Description</label>
+                      <label className="form-label fw-semibold">
+                        Description
+                      </label>
                       <textarea
                         name="description"
                         rows="4"
@@ -403,7 +425,9 @@ const MyListingDetailsPage = () => {
 
                     <div className="row g-3">
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Property Type</label>
+                        <label className="form-label fw-semibold">
+                          Property Type
+                        </label>
                         <input
                           name="property_type"
                           className="form-control"
@@ -422,12 +446,15 @@ const MyListingDetailsPage = () => {
                           required
                         >
                           <option value="For Sale">For Sale</option>
-                          <option value="For Rent">For Rent</option>
+                          <option value="For Rent">Sold</option>
+                          <option value="For Rent">Pending</option>
                         </select>
                       </div>
 
                       <div className="col-md-4">
-                        <label className="form-label fw-semibold">Bedrooms</label>
+                        <label className="form-label fw-semibold">
+                          Bedrooms
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -439,7 +466,9 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
                       <div className="col-md-4">
-                        <label className="form-label fw-semibold">Bathrooms</label>
+                        <label className="form-label fw-semibold">
+                          Bathrooms
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -464,7 +493,9 @@ const MyListingDetailsPage = () => {
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Size (sqm)</label>
+                        <label className="form-label fw-semibold">
+                          Size (sqm)
+                        </label>
                         <input
                           type="number"
                           step="0.01"
@@ -477,7 +508,9 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Land Size (sqm)</label>
+                        <label className="form-label fw-semibold">
+                          Land Size (sqm)
+                        </label>
                         <input
                           type="number"
                           step="0.01"
@@ -491,7 +524,9 @@ const MyListingDetailsPage = () => {
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Year Built</label>
+                        <label className="form-label fw-semibold">
+                          Year Built
+                        </label>
                         <input
                           type="number"
                           min="1900"
@@ -504,7 +539,9 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Condition</label>
+                        <label className="form-label fw-semibold">
+                          Condition
+                        </label>
                         <input
                           name="condition"
                           className="form-control"
@@ -525,7 +562,9 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Subcounty</label>
+                        <label className="form-label fw-semibold">
+                          Subcounty
+                        </label>
                         <input
                           name="subcounty"
                           className="form-control"
@@ -536,7 +575,9 @@ const MyListingDetailsPage = () => {
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Latitude</label>
+                        <label className="form-label fw-semibold">
+                          Latitude
+                        </label>
                         <input
                           type="number"
                           step="any"
@@ -550,7 +591,9 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Longitude</label>
+                        <label className="form-label fw-semibold">
+                          Longitude
+                        </label>
                         <input
                           type="number"
                           step="any"
@@ -574,7 +617,11 @@ const MyListingDetailsPage = () => {
                         </p>
                         <div
                           className="border rounded-3 border-primary"
-                          style={{ height: "320px", width: "100%", overflow: "hidden" }}
+                          style={{
+                            height: "320px",
+                            width: "100%",
+                            overflow: "hidden",
+                          }}
                         >
                           <MapContainer
                             center={markerPosition}
@@ -592,23 +639,30 @@ const MyListingDetailsPage = () => {
                           </MapContainer>
                         </div>
                         <small className="text-primary small">
-                          Current location: {Number(formData.latitude).toFixed(6)},{" "}
+                          Current location:{" "}
+                          {Number(formData.latitude).toFixed(6)},{" "}
                           {Number(formData.longitude).toFixed(6)}
                         </small>
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Predicted Price</label>
+                        <label className="form-label fw-semibold">
+                          Predicted Price
+                        </label>
                         <input
                           type="text"
                           className="form-control bg-light"
-                          value={formData.predicted_price || "Will use listing price"}
+                          value={
+                            formData.predicted_price || "Will use listing price"
+                          }
                           readOnly
                           disabled
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label fw-semibold">Listing Price</label>
+                        <label className="form-label fw-semibold">
+                          Listing Price
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -649,7 +703,10 @@ const MyListingDetailsPage = () => {
                             checked={selectedAmenities.includes(amenity.id)}
                             onChange={() => toggleAmenity(amenity.id)}
                           />
-                          <label className="form-check-label" htmlFor={`amenity-${amenity.id}`}>
+                          <label
+                            className="form-check-label"
+                            htmlFor={`amenity-${amenity.id}`}
+                          >
                             {amenity.name}
                           </label>
                         </div>
@@ -708,7 +765,9 @@ const MyListingDetailsPage = () => {
                           />
                           <div className="card-body py-2">
                             <div className="d-flex justify-content-between align-items-center">
-                              <span className="badge text-bg-primary">{image.image_type}</span>
+                              <span className="badge text-bg-primary">
+                                {image.image_type}
+                              </span>
                               <button
                                 type="button"
                                 className="btn btn-outline-danger rounded-4"
@@ -751,11 +810,15 @@ const MyListingDetailsPage = () => {
                             style={{ height: "140px", objectFit: "cover" }}
                           />
                           <div className="card-body py-2">
-                            <label className="form-label small mb-1">Type</label>
+                            <label className="form-label small mb-1">
+                              Type
+                            </label>
                             <select
                               className="form-select form-select-sm mb-2"
                               value={image.image_type}
-                              onChange={(e) => changePendingImageType(index, e.target.value)}
+                              onChange={(e) =>
+                                changePendingImageType(index, e.target.value)
+                              }
                             >
                               <option value="normal">normal</option>
                               <option value="panoramic">panoramic</option>
