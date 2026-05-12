@@ -1,0 +1,200 @@
+scraped_subcounty_value,status,mapped_constituency
+16-Mar,unmatched,
+3 hours ago,unmatched,
+Ainabkoi,exact_constituency,AINABKOI
+Athi,ward_name,KITUI SOUTH
+Athi River,ward_name,MAVOKO
+Bahati / Nakuru,unmatched,
+Bamburi,ward_name,KISAUNI
+Banana,unmatched,
+Bukembe East,ward_name,KANDUYI
+Bukembe West,ward_name,KANDUYI
+Butali/Chegulo,ward_name,MALAVA
+Butsotso Central,ward_name,LURAMBI
+Central Kamagambo,ward_name,RONGO
+Central Kasipul,ward_name,KASIPUL
+Changamwe,exact_constituency,CHANGAMWE
+Chokaa,unmatched,
+Dagoretti,unmatched,
+Dandora,unmatched,
+Diani,unmatched,
+Donholm,unmatched,
+East Wanga,ward_name,MUMIAS EAST
+Eastleigh,unmatched,
+Eldoret CBD,unmatched,
+Embakasi,ward_name,EMBAKASI EAST
+Engineer,ward_name,KINANGOP
+Gachie,unmatched,
+Ganjoni,unmatched,
+Gathigiriri,ward_name,MWEA
+Gatundu North,exact_constituency,GATUNDU NORTH
+Gatundu South,exact_constituency,GATUNDU SOUTH
+Gatunga,ward_name,THARAKA
+Gilgil,exact_constituency,GILGIL
+Githunguri,exact_constituency,GITHUNGURI
+Githurai,ward_name,ROYSAMBU
+Gombato Bongwe,ward_name,MSAMBWENI
+Imara Daima,ward_name,EMBAKASI SOUTH
+Isinya,unmatched,
+Jamhuri,unmatched,
+Jomvu,exact_constituency,JOMVU
+Juja,exact_constituency,JUJA
+Kabete,exact_constituency,KABETE
+Kabuchai/Chwele,ward_name,KABUCHAI
+Kagundu-Ini,ward_name,KANDARA
+Kahawa,ward_name,ROYSAMBU
+Kahawa West,ward_name,ROYSAMBU
+Kajiado CBD,unmatched,
+Kaloleni / Kilifi,unmatched,
+Kaloleni / Taita Taveta,unmatched,
+Kamulu,unmatched,
+Kangundo,exact_constituency,KANGUNDO
+Kapseret,exact_constituency,KAPSERET
+Karatina Town,ward_name,MATHIRA
+Karau,ward_name,OL KALOU
+Karen,ward_name,LANGATA
+Kariobangi,unmatched,
+Kasarani,exact_constituency,KASARANI
+Kawangware,ward_name,DAGORETTI SOUTH
+Kayole,unmatched,
+Kerugoya,ward_name,KIRINYAGA CENTRAL
+Kesses,exact_constituency,KESSES
+Khalaba (Kanduyi),unmatched,
+Kiambaa,exact_constituency,KIAMBAA
+Kiambere,ward_name,MBEERE SOUTH
+Kiambu / Kiambu,unmatched,
+Kigumo,exact_constituency,KIGUMO
+Kiine,ward_name,NDIA
+Kikuyu,exact_constituency,KIKUYU
+Kileleshwa,ward_name,DAGORETTI NORTH
+Kilifi North,exact_constituency,KILIFI NORTH
+Kilifi South,exact_constituency,KILIFI SOUTH
+Kilifi Town,unmatched,
+Kilimani,ward_name,DAGORETTI NORTH
+Kimilili,exact_constituency,KIMILILI
+Kimorori/Wempa,ward_name,MARAGWA
+Kinondo,ward_name,MSAMBWENI
+Kipipiri,exact_constituency,KIPIPIRI
+Kirima / Embu,unmatched,
+Kisaju,unmatched,
+Kisauni,exact_constituency,KISAUNI
+Kiserian,unmatched,
+Kisumu Central,exact_constituency,KISUMU CENTRAL
+Kisumu East,exact_constituency,KISUMU EAST
+Kisumu West,exact_constituency,KISUMU WEST
+Kitale,unmatched,
+Kitengela,ward_name,KAJIADO EAST
+Kitisuru,ward_name,WESTLANDS
+Kizingo / Mombasa,unmatched,
+Komarock,ward_name,EMBAKASI CENTRAL
+Laikipia Central,unmatched,
+Laikipia West,exact_constituency,LAIKIPIA WEST
+Lanet,unmatched,
+Langata,exact_constituency,LANGATA
+Lari,exact_constituency,LARI
+Lavington,unmatched,
+Likoni,exact_constituency,LIKONI
+Limuru,exact_constituency,LIMURU
+London,ward_name,NAKURU TOWN EAST
+Machakos Town,exact_constituency,MACHAKOS TOWN
+Magarini,exact_constituency,MAGARINI
+Magumu,ward_name,KINANGOP
+Makadara,exact_constituency,MAKADARA
+Makuyu,ward_name,MARAGWA
+Malaba Central,ward_name,TESO NORTH
+Malaha/Isongo/Makunga,ward_name,MUMIAS EAST
+Malindi,exact_constituency,MALINDI
+Marakaru/Tuuti,ward_name,KANDUYI
+Mathare North,ward_name,RUARAKA
+Matungulu,exact_constituency,MATUNGULU
+Mavoko,exact_constituency,MAVOKO
+Mazeras,unmatched,
+Mbagathi Way,unmatched,
+Mbaruk/Eburu,ward_name,GILGIL
+Mbirikani,unmatched,
+Meru Town,unmatched,
+Mkomani,ward_name,NYALI
+Mlolongo,unmatched,
+Mogotio,exact_constituency,MOGOTIO
+Moiben,exact_constituency,MOIBEN
+Mombasa CBD,unmatched,
+Mombasa Road,unmatched,
+Mountain View,ward_name,WESTLANDS
+Mtwapa,unmatched,
+Mua,ward_name,MACHAKOS TOWN
+Mumias Central,ward_name,MUMIAS WEST
+Municipality,ward_name,NORTH IMENTI
+Murungaru,ward_name,KINANGOP
+Musikoma,ward_name,KANDUYI
+Muthaiga,unmatched,
+Mutira,ward_name,KIRINYAGA CENTRAL
+Mvita,exact_constituency,MVITA
+Mwala,exact_constituency,MWALA
+Mwea,exact_constituency,MWEA
+Mwiki,ward_name,KASARANI
+Nairobi Central,ward_name,STAREHE
+Nairobi South,ward_name,STAREHE
+Nairobi West,ward_name,LANGATA
+Naivasha,exact_constituency,NAIVASHA
+Nakuru Town East,exact_constituency,NAKURU TOWN EAST
+Nakuru Town West,exact_constituency,NAKURU TOWN WEST
+Nangina,ward_name,FUNYULA
+Nanyuki,ward_name,LAIKIPIA EAST
+Narok Town,ward_name,NAROK NORTH
+Ngara,ward_name,STAREHE
+Nginda,ward_name,MARAGWA
+Ngong,ward_name,KAJIADO NORTH
+Nguumo,ward_name,KIBWEZI WEST
+NjabiniKiburu,unmatched,
+Njiru,ward_name,KASARANI
+North Kinangop,ward_name,KINANGOP
+North Sakwa (Bondo),unmatched,
+Nyahururu,unmatched,
+Nyali,exact_constituency,NYALI
+Nyeri Town,exact_constituency,NYERI TOWN
+Ogembo,unmatched,
+Olkeri,ward_name,KAJIADO NORTH
+Oloolua,ward_name,KAJIADO NORTH
+Ongata Rongai,ward_name,KAJIADO NORTH
+Pangani,ward_name,STAREHE
+Parklands/Highridge,ward_name,WESTLANDS
+Ridgeways,unmatched,
+Rongai,exact_constituency,RONGAI
+Rosslyn,unmatched,
+Roysambu,exact_constituency,ROYSAMBU
+Ruai,ward_name,KASARANI
+Ruaka,unmatched,
+Ruaraka,exact_constituency,RUARAKA
+Ruiri/Rwarera,ward_name,BUURI
+Ruiru,exact_constituency,RUIRU
+Runda,unmatched,
+Saika,unmatched,
+Shanzu,ward_name,KISAUNI
+Sheywe,ward_name,LURAMBI
+Shirere,ward_name,LURAMBI
+Silibwet Township,ward_name,BOMET CENTRAL
+South B,unmatched,
+South C,ward_name,LANGATA
+Soy,exact_constituency,SOY
+Syokimau,unmatched,
+Thika,unmatched,
+Thome / Nairobi,unmatched,
+Tiwi,ward_name,MATUGA
+Tononoka,ward_name,MVITA
+Township D,unmatched,
+Township G,unmatched,
+Tudor,ward_name,MVITA
+Turbo,exact_constituency,TURBO
+Ukunda,ward_name,MSAMBWENI
+Umoja,unmatched,
+Upperhill,unmatched,
+Utawala,ward_name,EMBAKASI EAST
+Waberi,ward_name,GARISSA TOWNSHIP
+Webuye,unmatched,
+West Sakwa (Bondo),unmatched,
+Westlands,exact_constituency,WESTLANDS
+Witeithie,ward_name,JUJA
+Woodley/Kenyatta Golf Course,ward_name,KIBRA
+Wote,ward_name,MAKUENI
+Yatta,exact_constituency,YATTA
+Zimmerman,ward_name,ROYSAMBU

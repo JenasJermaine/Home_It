@@ -16,6 +16,7 @@ import BookmarksPage from "./pages/Bookmarks";
 import HelpPage from "./pages/Help";
 import SettingsPage from "./pages/Settings";
 import ProfilePage from "./pages/Profile";
+import PanoramicPage from "./pages/panoramic";
 
 function AppContent({ isExpanded, setIsExpanded }) {
   const location = useLocation();
@@ -52,6 +53,7 @@ function AppContent({ isExpanded, setIsExpanded }) {
           <Route path="/Help" element={<HelpPage />} />
           <Route path="/Settings" element={<SettingsPage />} />
           <Route path="/Profile" element={<ProfilePage />} />
+          <Route path="/panoramic" element={<PanoramicPage />} />
         </Routes>
       </div>
     </>

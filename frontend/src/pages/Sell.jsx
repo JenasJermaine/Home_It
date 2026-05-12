@@ -874,9 +874,9 @@ const SellPage = () => {
 
                       <div className="alert alert-warning" role="alert">
                         <i className="bi bi-exclamation-triangle me-2"></i>
-                        The backend pairs image types by index: first selected
-                        image gets first type, second gets second type, and so
-                        on.
+                        The images will be displayed on the buy page in the same
+                        order you upload them, with the first image acting as
+                        the cover.
                       </div>
                     </div>
                   )}

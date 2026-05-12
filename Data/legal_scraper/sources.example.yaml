@@ -1,0 +1,49 @@
+user_agent: "HomeItResearchBot/1.0 (+contact: your-email@example.com)"
+request_timeout_seconds: 20
+max_retries: 3
+strict_robots: true
+
+sources:
+  - name: "EXAMPLE_SOURCE_REPLACE_ME"
+    enabled: false
+    terms_allowed: false
+    base_url: "https://example.com"
+    listing_urls:
+      - "https://example.com/properties"
+    pagination:
+      enabled: true
+      param: "page"
+      start_page: 1
+      max_pages: 20
+      stop_on_empty_page: true
+      stop_on_no_new_links: true
+    rate_limit_seconds: 2.0
+    max_listings: 100
+    link_selector: "a.listing-card"
+    link_attribute: "href"
+    same_domain_only: true
+    fields:
+      property_type:
+        selector: ".property-type"
+      bedrooms:
+        selector: ".beds"
+        transform: "int"
+      bathrooms:
+        selector: ".baths"
+        transform: "int"
+      floor_area_square_meters:
+        selector: ".area"
+        transform: "float"
+      county:
+        selector: ".county"
+      sub_county:
+        selector: ".sub-county"
+      advertised_price:
+        selector: ".price"
+        transform: "money"
+      year_property_advertised:
+        selector: ".publish-year"
+        transform: "int"
+      year_house_completion:
+        selector: ".completion-year"
+        transform: "int"
