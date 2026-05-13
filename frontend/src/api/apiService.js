@@ -99,6 +99,51 @@ export const getAllAmenities = () => api.get('/amenities');
 export const createAmenity = (amenityBody) => postJson('/amenities', amenityBody);
 export const updateAmenity = (amenityId, amenityBody) => putJson(`/amenities/${amenityId}`, amenityBody);
 export const deleteAmenity = (amenityId) => api.delete(`/amenities/${amenityId}`);
+export const predictPriceEstimate = (predictBody) => postJson("/price_estimates/predict", predictBody);
+
+export const ML_MODEL_AMENITY_NAMES = [
+  "Parking Lot",
+  "Designated Servant Quarter",
+  "CCTV",
+  "Elevator",
+  "Garden / Backyard / Play Area",
+  "Swimming Pool",
+  "Backup Generator",
+  "Fixed Internet Infrastructure",
+  "Solar Water Heating System",
+  "Solar Lighting System",
+  "Gym",
+  "Fire Safety Precautions",
+  "Solar Security Lighting",
+  "Access Ramp",
+];
+
+const normalizeAmenityKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+export const ensureMlModelAmenities = async () => {
+  const amenitiesResponse = await getAllAmenities();
+  const existingAmenities = amenitiesResponse.data?.data || [];
+  const existingKeys = new Set(
+    existingAmenities.map((amenity) => normalizeAmenityKey(amenity.name)),
+  );
+
+  const missingAmenityNames = ML_MODEL_AMENITY_NAMES.filter(
+    (name) => !existingKeys.has(normalizeAmenityKey(name)),
+  );
+
+  if (missingAmenityNames.length > 0) {
+    await Promise.all(
+      missingAmenityNames.map((name) => createAmenity({ name })),
+    );
+    const refreshedAmenitiesResponse = await getAllAmenities();
+    return refreshedAmenitiesResponse.data?.data || [];
+  }
+
+  return existingAmenities;
+};
 
 //USER PROFILE API
 export const getMyProfile = () => api.get('/user_profiles/me');

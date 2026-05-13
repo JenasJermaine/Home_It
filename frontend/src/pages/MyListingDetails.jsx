@@ -7,12 +7,13 @@ import {
   buildMediaUrl,
   deleteAllHouseImages,
   deleteSingleHouseImage,
-  getAllAmenities,
+  ensureMlModelAmenities,
   getMyProfile,
   getPropertyById,
   modifyBasicHouseInfo,
   modifyHouseAmenities,
   modifyHouseImages,
+  predictPriceEstimate,
 } from "../api/apiService";
 
 const MAX_TOTAL_IMAGES = 15;
@@ -23,6 +24,7 @@ const MyListingDetailsPage = () => {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isPredictingPrice, setIsPredictingPrice] = useState(false);
   const [savingAmenities, setSavingAmenities] = useState(false);
   const [savingImages, setSavingImages] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
@@ -104,12 +106,10 @@ const MyListingDetailsPage = () => {
   useEffect(() => {
     const loadProperty = async () => {
       try {
-        const [profileResponse, propertyResponse, amenitiesResponse] =
-          await Promise.all([
-            getMyProfile(),
-            getPropertyById(id),
-            getAllAmenities(),
-          ]);
+        const [profileResponse, propertyResponse] = await Promise.all([
+          getMyProfile(),
+          getPropertyById(id),
+        ]);
 
         const currentUserId = profileResponse.data?.data?.id;
         const property = propertyResponse.data?.data;
@@ -124,7 +124,8 @@ const MyListingDetailsPage = () => {
           return;
         }
 
-        setAllAmenities(amenitiesResponse.data?.data || []);
+        const loadedAmenities = await ensureMlModelAmenities();
+        setAllAmenities(loadedAmenities);
         applyPropertyToState(property);
       } catch (err) {
         setError(
@@ -182,6 +183,74 @@ const MyListingDetailsPage = () => {
     return <Marker position={markerPosition} icon={mapMarkerIcon}></Marker>;
   };
 
+  const requestPredictedPrice = async ({ showSuccess = true } = {}) => {
+    setError("");
+
+    const requiredFields = [
+      "property_type",
+      "bedrooms",
+      "bathrooms",
+      "size_sqm",
+      "land_size_sqm",
+      "year_built",
+      "county",
+      "subcounty",
+    ];
+
+    const hasMissingRequiredField = requiredFields.some(
+      (field) => String(formData[field] ?? "").trim() === "",
+    );
+
+    if (hasMissingRequiredField) {
+      setError(
+        "Fill in property type, bedrooms, bathrooms, size, land size, year built, county and subcounty before predicting.",
+      );
+      return null;
+    }
+
+    try {
+      setIsPredictingPrice(true);
+      const response = await predictPriceEstimate({
+        property_id: Number(id),
+        property_type: formData.property_type,
+        bedrooms: Number(formData.bedrooms),
+        bathrooms: Number(formData.bathrooms),
+        size_sqm: Number(formData.size_sqm),
+        land_size_sqm: Number(formData.land_size_sqm),
+        year_built: Number(formData.year_built),
+        county: formData.county,
+        subcounty: formData.subcounty,
+        year_property_was_advertised: new Date().getFullYear(),
+        amenity_ids: selectedAmenities,
+      });
+
+      const predictedPrice = Number(response.data?.data?.predicted_price);
+      if (!Number.isFinite(predictedPrice)) {
+        throw new Error("Prediction response is missing a valid price.");
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        predicted_price: String(predictedPrice),
+      }));
+
+      if (showSuccess) {
+        setSuccessMessage("Predicted price updated from the ML model.");
+      }
+
+      return predictedPrice;
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          err.message ||
+          "Failed to predict price right now.",
+      );
+      return null;
+    } finally {
+      setIsPredictingPrice(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -189,6 +258,11 @@ const MyListingDetailsPage = () => {
 
     try {
       setSaving(true);
+      const predictedPrice = await requestPredictedPrice({ showSuccess: false });
+      if (predictedPrice === null) {
+        return;
+      }
+
       await modifyBasicHouseInfo(id, {
         description: formData.description,
         property_type: formData.property_type,
@@ -203,9 +277,7 @@ const MyListingDetailsPage = () => {
         subcounty: formData.subcounty,
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        predicted_price: Number(
-          formData.predicted_price || formData.price || 0,
-        ),
+        predicted_price: predictedPrice,
         price: Number(formData.price),
         status: formData.status,
       });
@@ -658,6 +730,22 @@ const MyListingDetailsPage = () => {
                           readOnly
                           disabled
                         />
+                        <small className="text-primary d-block mt-1">
+                          Uses the ML prediction endpoint with your current
+                          details and selected amenities.
+                        </small>
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary rounded-4 px-3"
+                            onClick={() => requestPredictedPrice()}
+                            disabled={isPredictingPrice}
+                          >
+                            {isPredictingPrice
+                              ? "Predicting..."
+                              : "Get Predicted Price"}
+                          </button>
+                        </div>
                       </div>
                       <div className="col-md-6">
                         <label className="form-label fw-semibold">

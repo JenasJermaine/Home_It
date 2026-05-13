@@ -7,7 +7,8 @@ import {
   addBasicHouseInfo,
   addHouseAmenities,
   addHouseImages,
-  getAllAmenities,
+  ensureMlModelAmenities,
+  predictPriceEstimate,
 } from "../api/apiService";
 
 const DEFAULT_LAT = -1.2921;
@@ -17,6 +18,7 @@ const MAX_IMAGES = 15;
 const SellPage = () => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPredictingPrice, setIsPredictingPrice] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [amenities, setAmenities] = useState([]);
@@ -61,8 +63,8 @@ const SellPage = () => {
   useEffect(() => {
     const loadAmenities = async () => {
       try {
-        const response = await getAllAmenities();
-        setAmenities(response.data?.data || []);
+        const loadedAmenities = await ensureMlModelAmenities();
+        setAmenities(loadedAmenities);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to load amenities.");
       }
@@ -166,6 +168,73 @@ const SellPage = () => {
     }
   };
 
+  const requestPredictedPrice = async ({ showSuccess = true } = {}) => {
+    setError("");
+
+    const requiredFields = [
+      "property_type",
+      "bedrooms",
+      "bathrooms",
+      "size_sqm",
+      "land_size_sqm",
+      "year_built",
+      "county",
+      "subcounty",
+    ];
+
+    const hasMissingRequiredField = requiredFields.some(
+      (field) => String(formData[field] ?? "").trim() === "",
+    );
+
+    if (hasMissingRequiredField) {
+      setError(
+        "Fill in property type, bedrooms, bathrooms, size, land size, year built, county and subcounty before predicting.",
+      );
+      return null;
+    }
+
+    try {
+      setIsPredictingPrice(true);
+      const response = await predictPriceEstimate({
+        property_type: formData.property_type,
+        bedrooms: Number(formData.bedrooms),
+        bathrooms: Number(formData.bathrooms),
+        size_sqm: Number(formData.size_sqm),
+        land_size_sqm: Number(formData.land_size_sqm),
+        year_built: Number(formData.year_built),
+        county: formData.county,
+        subcounty: formData.subcounty,
+        year_property_was_advertised: new Date().getFullYear(),
+        amenity_ids: formData.selectedAmenities,
+      });
+
+      const predictedPrice = Number(response.data?.data?.predicted_price);
+      if (!Number.isFinite(predictedPrice)) {
+        throw new Error("Prediction response is missing a valid price.");
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        predicted_price: String(predictedPrice),
+      }));
+
+      if (showSuccess) {
+        setSuccessMessage("Predicted price updated from the ML model.");
+      }
+
+      return predictedPrice;
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          err.message ||
+          "Failed to predict price right now.",
+      );
+      return null;
+    } finally {
+      setIsPredictingPrice(false);
+    }
+  };
+
   const LocationMarker = () => {
     useMapEvents({
       click(e) {
@@ -194,6 +263,11 @@ const SellPage = () => {
 
     try {
       setIsSubmitting(true);
+      const predictedPrice = await requestPredictedPrice({ showSuccess: false });
+      if (predictedPrice === null) {
+        return;
+      }
+
       const basicPropertyPayload = {
         description: formData.description,
         property_type: formData.property_type,
@@ -208,9 +282,7 @@ const SellPage = () => {
         subcounty: formData.subcounty,
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        predicted_price: Number(
-          formData.predicted_price || formData.price || 0,
-        ),
+        predicted_price: predictedPrice,
         price: Number(formData.price),
         status: formData.status,
       };
@@ -689,9 +761,21 @@ const SellPage = () => {
                             disabled
                           />
                           <small className="text-primary">
-                            Sent to backend; defaults to your listing price for
-                            now.
+                            Uses the ML prediction endpoint. Add amenities in step
+                            2, then refresh for a better estimate.
                           </small>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary rounded-4 px-3"
+                              onClick={() => requestPredictedPrice()}
+                              disabled={isPredictingPrice}
+                            >
+                              {isPredictingPrice
+                                ? "Predicting..."
+                                : "Get Predicted Price"}
+                            </button>
+                          </div>
                         </div>
 
                         <div className="col-md-6 mb-3">
