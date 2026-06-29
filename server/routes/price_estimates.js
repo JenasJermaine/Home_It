@@ -3,7 +3,7 @@ import db from "../models/index.js";
 import auth from "../middleware/auth.js";
 
 const router = express.Router();
-const ML_API_URL = (process.env.ML_API_URL || "http://127.0.0.1:8001").replace(
+const ML_API_URL = (process.env.ML_API_URL || "http://127.0.0.1:8010").replace(
   /\/+$/,
   "",
 );
@@ -41,16 +41,17 @@ const SUBCOUNTY_MODEL_CODE_MAP = {
   EMBAKASICENTRAL: "2",
   EMBAKASIEAST: "2",
   EMBAKASIWEST: "2",
+  KAMKUNJI: "3",
+  KAMUKUNJI: "3",
   KASARANI: "4",
   ROYSAMBU: "4",
   KIBRA: "5",
   LANGATA: "6",
   MAKADARA: "7",
+  MATHARE: "8",
   RUARAKA: "9",
-  MATHARE: "9",
   NJIRU: "9",
   STAREHE: "10",
-  KAMUKUNJI: "10",
   WESTLANDS: "11",
 };
 
@@ -215,8 +216,19 @@ const callFastApiPredict = async (payload) => {
   });
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`FastAPI prediction failed (${response.status}): ${errorBody}`);
+    const contentType = response.headers.get("content-type") || "";
+    let errorMessage = await response.text();
+
+    if (contentType.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(errorMessage);
+        errorMessage = parsed.detail || parsed.error || errorMessage;
+      } catch {
+        // Keep raw text if parsing fails.
+      }
+    }
+
+    throw new Error(`FastAPI prediction failed (${response.status}): ${errorMessage}`);
   }
 
   return response.json();

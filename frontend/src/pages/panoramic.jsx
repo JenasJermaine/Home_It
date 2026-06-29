@@ -12,14 +12,47 @@ const PanoramicPage = () => {
     if (!pannellum?.viewer) return;
 
     pannellumInstanceRef.current = pannellum.viewer(viewerRef.current, {
-      type: "equirectangular",
-      panorama: "/images/Panoramic1.jpg",
       autoLoad: true,
       showZoomCtrl: true,
       showFullscreenCtrl: true,
-      pitch: 10,
-      yaw: 180,
-      hfov: 110,
+      default: {
+        firstScene: "outside",
+        sceneFadeDuration: 1000,
+      },
+      scenes: {
+        outside: {
+          type: "equirectangular",
+          panorama: "/images/Panoramic1.jpg",
+          pitch: 10,
+          yaw: 180,
+          hfov: 110,
+          hotSpots: [
+            {
+              pitch: -2,
+              yaw: 120,
+              type: "scene",
+              text: "Enter living room",
+              sceneId: "living-room",
+            },
+          ],
+        },
+        "living-room": {
+          type: "equirectangular",
+          panorama: "/images/panoramic2.jpg",
+          pitch: 6,
+          yaw: 90,
+          hfov: 110,
+          hotSpots: [
+            {
+              pitch: -2,
+              yaw: -130,
+              type: "scene",
+              text: "Back outside",
+              sceneId: "outside",
+            },
+          ],
+        },
+      },
     });
 
     return () => {

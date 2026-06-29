@@ -11,12 +11,14 @@ import BuyPage from "./pages/Buy";
 import SellPage from "./pages/Sell";
 import MyListingsPage from "./pages/MyListings";
 import MyListingDetailsPage from "./pages/MyListingDetails";
+import PropertyDetailsPage from "./pages/PropertyDetails";
 import PriceEstimatorPage from "./pages/PriceEstimator";
 import BookmarksPage from "./pages/Bookmarks";
 import HelpPage from "./pages/Help";
 import SettingsPage from "./pages/Settings";
 import ProfilePage from "./pages/Profile";
 import PanoramicPage from "./pages/panoramic";
+import Error404Page from "./pages/Error404";
 
 function AppContent({ isExpanded, setIsExpanded }) {
   const location = useLocation();
@@ -45,6 +47,7 @@ function AppContent({ isExpanded, setIsExpanded }) {
           <Route path="/Signin" element={<SignInPage />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/Buy" element={<BuyPage />} />
+          <Route path="/properties/:id" element={<PropertyDetailsPage />} />
           <Route path="/Sell" element={<SellPage />} />
           <Route path="/Mylistings" element={<MyListingsPage />} />
           <Route path="/Mylistings/:id" element={<MyListingDetailsPage />} />
@@ -54,6 +57,7 @@ function AppContent({ isExpanded, setIsExpanded }) {
           <Route path="/Settings" element={<SettingsPage />} />
           <Route path="/Profile" element={<ProfilePage />} />
           <Route path="/panoramic" element={<PanoramicPage />} />
+          <Route path="*" element={<Error404Page />} />
         </Routes>
       </div>
     </>

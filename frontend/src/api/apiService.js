@@ -87,6 +87,22 @@ export const deleteHouse= (propertyId) => api.delete(`/properties/${propertyId}`
 export const deleteSingleHouseImage= (propertyId, imageId) => api.delete(`/properties/${propertyId}/images/${imageId}`);
 export const deleteAllHouseImages= (propertyId) => api.delete(`/properties/${propertyId}/images`);
 
+//PANORAMIC TOURS API
+export const getPanoramicTourByProperty = (propertyId) =>
+  api.get(`/panoramic_tours/properties/${propertyId}`);
+export const createPanoramicScene = (propertyId, sceneBody) =>
+  postJson(`/panoramic_tours/properties/${propertyId}/scenes`, sceneBody);
+export const updatePanoramicScene = (sceneId, sceneBody) =>
+  putJson(`/panoramic_tours/scenes/${sceneId}`, sceneBody);
+export const deletePanoramicScene = (sceneId) =>
+  api.delete(`/panoramic_tours/scenes/${sceneId}`);
+export const createPanoramicHotspot = (sceneId, hotspotBody) =>
+  postJson(`/panoramic_tours/scenes/${sceneId}/hotspots`, hotspotBody);
+export const updatePanoramicHotspot = (hotspotId, hotspotBody) =>
+  putJson(`/panoramic_tours/hotspots/${hotspotId}`, hotspotBody);
+export const deletePanoramicHotspot = (hotspotId) =>
+  api.delete(`/panoramic_tours/hotspots/${hotspotId}`);
+
 //BOOKMARKS API
 export const getMyBookmarks = () => api.get('/bookmarks');
 export const checkBookmarkStatus = (propertyId) => api.get(`/bookmarks/check/${propertyId}`);
@@ -123,9 +139,21 @@ const normalizeAmenityKey = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
+const uniqueAmenitiesByName = (amenities) => {
+  const seen = new Set();
+  return amenities.filter((amenity) => {
+    const key = normalizeAmenityKey(amenity.name);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+};
+
 export const ensureMlModelAmenities = async () => {
   const amenitiesResponse = await getAllAmenities();
-  const existingAmenities = amenitiesResponse.data?.data || [];
+  const existingAmenities = uniqueAmenitiesByName(amenitiesResponse.data?.data || []);
   const existingKeys = new Set(
     existingAmenities.map((amenity) => normalizeAmenityKey(amenity.name)),
   );
@@ -139,7 +167,7 @@ export const ensureMlModelAmenities = async () => {
       missingAmenityNames.map((name) => createAmenity({ name })),
     );
     const refreshedAmenitiesResponse = await getAllAmenities();
-    return refreshedAmenitiesResponse.data?.data || [];
+    return uniqueAmenitiesByName(refreshedAmenitiesResponse.data?.data || []);
   }
 
   return existingAmenities;

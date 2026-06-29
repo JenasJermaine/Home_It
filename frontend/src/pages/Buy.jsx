@@ -5,10 +5,14 @@ import { SlSizeFullscreen } from "react-icons/sl";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useNavigate } from "react-router-dom";
 import {
   buildMediaUrl,
+  createBookmark,
+  deleteBookmarkByProperty,
   getAllAmenities,
   getFilteredProperties,
+  getMyBookmarks,
 } from "../api/apiService";
 
 const DEFAULT_LAT = -1.2921;
@@ -54,7 +58,12 @@ const BuyPage = () => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bookmarkError, setBookmarkError] = useState("");
+  const [bookmarkMessage, setBookmarkMessage] = useState("");
+  const [bookmarkedPropertyIds, setBookmarkedPropertyIds] = useState(new Set());
+  const [bookmarkingIds, setBookmarkingIds] = useState(new Set());
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const navigate = useNavigate();
 
   const mapMarkerIcon = useMemo(
     () =>
@@ -165,6 +174,30 @@ const BuyPage = () => {
     fetchFilteredProperties(false);
   }, [fetchFilteredProperties]);
 
+  useEffect(() => {
+    const loadBookmarks = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setBookmarkedPropertyIds(new Set());
+        return;
+      }
+      try {
+        const response = await getMyBookmarks();
+        const bookmarks = response.data?.data || [];
+        const ids = bookmarks
+          .map((bookmark) => bookmark.property?.id ?? bookmark.property_id)
+          .filter(Boolean);
+        setBookmarkedPropertyIds(new Set(ids));
+      } catch (err) {
+        setBookmarkError(
+          err.response?.data?.error || "Failed to load bookmarks.",
+        );
+      }
+    };
+
+    loadBookmarks();
+  }, []);
+
   const applyFilters = () => {
     fetchFilteredProperties(viewMode === "map");
   };
@@ -180,6 +213,48 @@ const BuyPage = () => {
 
   const switchToMap = () => {
     setViewMode("map");
+  };
+
+  const toggleBookmark = async (event, propertyId) => {
+    event.stopPropagation();
+    setBookmarkError("");
+    setBookmarkMessage("");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setBookmarkError("Please sign in to bookmark properties.");
+      return;
+    }
+
+    setBookmarkingIds((prev) => new Set(prev).add(propertyId));
+    try {
+      if (bookmarkedPropertyIds.has(propertyId)) {
+        await deleteBookmarkByProperty(propertyId);
+        setBookmarkedPropertyIds((prev) => {
+          const next = new Set(prev);
+          next.delete(propertyId);
+          return next;
+        });
+        setBookmarkMessage("Removed from bookmarks.");
+      } else {
+        await createBookmark({ property_id: propertyId });
+        setBookmarkedPropertyIds((prev) => {
+          const next = new Set(prev);
+          next.add(propertyId);
+          return next;
+        });
+        setBookmarkMessage("Added to bookmarks.");
+      }
+    } catch (err) {
+      setBookmarkError(
+        err.response?.data?.error || "Failed to update bookmark.",
+      );
+    } finally {
+      setBookmarkingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(propertyId);
+        return next;
+      });
+    }
   };
 
   const mapCenter = useMemo(() => {
@@ -420,6 +495,14 @@ const BuyPage = () => {
             {error}
           </div>
         )}
+        {(bookmarkError || bookmarkMessage) && (
+          <div
+            className={`alert ${bookmarkError ? "alert-danger" : "alert-success"} mb-3`}
+            role="alert"
+          >
+            {bookmarkError || bookmarkMessage}
+          </div>
+        )}
 
         {loading ? (
           <div className="min-vh-100 d-flex align-items-center justify-content-center">
@@ -444,9 +527,38 @@ const BuyPage = () => {
                 return (
                   <div className="col-7 col-md-5 col-xl-3" key={listing.id}>
                     <div
-                      className="card border-primary p-1 h-100 shadow-sm"
-                      style={{ transition: "transform 0.2s ease, box-shadow 0.2s ease" }}
+                      className="card border-primary p-1 h-100 shadow-sm position-relative"
+                      style={{
+                        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                        cursor: "pointer",
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/properties/${listing.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          navigate(`/properties/${listing.id}`);
+                        }
+                      }}
                     >
+                      <button
+                        type="button"
+                        className="btn position-absolute top-0 end-0 m-2 d-flex align-items-center justify-content-center"
+                        style={{ width: "42px", height: "42px" }}
+                        onClick={(event) => toggleBookmark(event, listing.id)}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        disabled={bookmarkingIds.has(listing.id)}
+                        aria-label="Toggle bookmark"
+                      >
+                        <i
+                          className={`bi ${
+                            bookmarkedPropertyIds.has(listing.id)
+                              ? "bi-bookmark-fill text-primary"
+                              : "bi-bookmark-fill text-white"
+                          }`}
+                          style={{ fontSize: "1.5rem" }}
+                        ></i>
+                      </button>
                       <img
                         src={coverImage}
                         className="card-img-top"
@@ -525,6 +637,15 @@ const BuyPage = () => {
                         <small>
                           {house.bedrooms} bed • {house.bathrooms} bath
                         </small>
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => navigate(`/properties/${house.id}`)}
+                          >
+                            View Details
+                          </button>
+                        </div>
                       </div>
                     </Popup>
                   </Marker>

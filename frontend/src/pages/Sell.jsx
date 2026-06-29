@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "pannellum/build/pannellum.css";
+import "pannellum/build/pannellum.js";
 import {
   addBasicHouseInfo,
   addHouseAmenities,
   addHouseImages,
+  createPanoramicHotspot,
+  createPanoramicScene,
   ensureMlModelAmenities,
   predictPriceEstimate,
 } from "../api/apiService";
@@ -14,6 +18,101 @@ import {
 const DEFAULT_LAT = -1.2921;
 const DEFAULT_LNG = 36.8219;
 const MAX_IMAGES = 15;
+const YAW_EDGE_LIMIT = 179;
+
+const PannellumPreview = ({ scenes, hotspots, onCoordinatePick }) => {
+  const viewerRef = useRef(null);
+  const instanceRef = useRef(null);
+
+  useEffect(() => {
+    if (!viewerRef.current || scenes.length === 0) return;
+    const pannellum = window.pannellum;
+    if (!pannellum?.viewer) return;
+
+    const toNumber = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const sceneConfig = {};
+    scenes.forEach((scene, index) => {
+      const hotSpots = hotspots
+        .filter((hotspot) => hotspot.fromSceneKey === scene.id)
+        .map((hotspot) => {
+          const pitch = toNumber(hotspot.pitch, null);
+          const yaw = toNumber(hotspot.yaw, null);
+          if (pitch === null || yaw === null) return null;
+
+          return {
+            pitch,
+            yaw,
+            type: "scene",
+            text: String(hotspot.text || ""),
+            sceneId: hotspot.toSceneKey,
+          };
+        })
+        .filter(Boolean);
+
+      sceneConfig[scene.id] = {
+        type: "equirectangular",
+        panorama: scene.previewUrl,
+        pitch: toNumber(scene.scene_pitch),
+        yaw: toNumber(scene.scene_yaw),
+        hfov: toNumber(scene.scene_hfov, 110),
+        minYaw: -YAW_EDGE_LIMIT,
+        maxYaw: YAW_EDGE_LIMIT,
+        hotSpots,
+      };
+
+      if (!sceneConfig[scene.id].panorama && index === 0) {
+        delete sceneConfig[scene.id];
+      }
+    });
+
+    instanceRef.current = pannellum.viewer(viewerRef.current, {
+      autoLoad: true,
+      showZoomCtrl: true,
+      showFullscreenCtrl: true,
+      default: {
+        firstScene: scenes[0]?.id,
+        sceneFadeDuration: 1000,
+      },
+      scenes: sceneConfig,
+    });
+
+    const container = instanceRef.current.getContainer();
+    const handleClick = (event) => {
+      if (!instanceRef.current) return;
+      const coords = instanceRef.current.mouseEventToCoords
+        ? instanceRef.current.mouseEventToCoords(event)
+        : [instanceRef.current.getPitch(), instanceRef.current.getYaw()];
+      if (coords && onCoordinatePick) {
+        onCoordinatePick(coords);
+      }
+    };
+
+    container.addEventListener("click", handleClick);
+
+    return () => {
+      container.removeEventListener("click", handleClick);
+      if (instanceRef.current) {
+        instanceRef.current.destroy();
+      }
+    };
+  }, [scenes, hotspots, onCoordinatePick]);
+
+  return (
+    <div
+      ref={viewerRef}
+      style={{
+        width: "100%",
+        height: "360px",
+        borderRadius: "12px",
+        overflow: "hidden",
+      }}
+    />
+  );
+};
 
 const SellPage = () => {
   const [step, setStep] = useState(1);
@@ -49,6 +148,10 @@ const SellPage = () => {
     DEFAULT_LNG,
   ]);
   const [images, setImages] = useState([]);
+  const [panoramicHotspots, setPanoramicHotspots] = useState([]);
+  const [showTourPreview, setShowTourPreview] = useState(false);
+  const [lastPreviewCoords, setLastPreviewCoords] = useState(null);
+  const imagesRef = useRef([]);
 
   const MapMarker = useMemo(
     () =>
@@ -59,6 +162,23 @@ const SellPage = () => {
       }),
     [],
   );
+
+  const panoramicImages = useMemo(
+    () => images.filter((image) => image.image_type === "panoramic"),
+    [images],
+  );
+
+  const getSceneLabel = (image, index) =>
+    String(image.scene_name || "").trim() ||
+    image.file?.name ||
+    `Panoramic Scene ${index + 1}`;
+
+  const handlePreviewCoordPick = useCallback((coords) => {
+    if (!Array.isArray(coords)) return;
+    const [pitch, yaw] = coords;
+    if (!Number.isFinite(pitch) || !Number.isFinite(yaw)) return;
+    setLastPreviewCoords({ pitch, yaw });
+  }, []);
 
   useEffect(() => {
     const loadAmenities = async () => {
@@ -73,36 +193,27 @@ const SellPage = () => {
     loadAmenities();
   }, []);
 
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+
   useEffect(
     () => () => {
-      images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      imagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
     },
-    [images],
+    [],
   );
+
+  useEffect(() => {
+    if (panoramicImages.length === 0) {
+      setShowTourPreview(false);
+      setLastPreviewCoords(null);
+    }
+  }, [panoramicImages.length]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleLatitudeChange = (e) => {
-    const value = e.target.value;
-    setFormData((prev) => ({ ...prev, latitude: value }));
-    const lat = Number(value);
-    const lng = Number(formData.longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setMarkerPosition([lat, lng]);
-    }
-  };
-
-  const handleLongitudeChange = (e) => {
-    const value = e.target.value;
-    setFormData((prev) => ({ ...prev, longitude: value }));
-    const lat = Number(formData.latitude);
-    const lng = Number(value);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setMarkerPosition([lat, lng]);
-    }
   };
 
   const handleAmenityToggle = (amenityId) => {
@@ -132,15 +243,38 @@ const SellPage = () => {
       file,
       image_type: "normal",
       previewUrl: URL.createObjectURL(file),
+      scene_name: "",
+      scene_pitch: "",
+      scene_yaw: "",
+      scene_hfov: "",
     }));
     setImages((prev) => [...prev, ...nextImages]);
     e.target.value = "";
   };
 
   const handleImageTypeChange = (index, imageType) => {
+    const target = images[index];
+    if (target?.image_type === "panoramic" && imageType !== "panoramic") {
+      setPanoramicHotspots((prev) =>
+        prev.filter(
+          (hotspot) =>
+            hotspot.fromSceneKey !== target.id &&
+            hotspot.toSceneKey !== target.id,
+        ),
+      );
+    }
+
     setImages((prev) =>
       prev.map((image, i) =>
         i === index ? { ...image, image_type: imageType } : image,
+      ),
+    );
+  };
+
+  const handleSceneFieldChange = (index, field, value) => {
+    setImages((prev) =>
+      prev.map((image, i) =>
+        i === index ? { ...image, [field]: value } : image,
       ),
     );
   };
@@ -150,14 +284,69 @@ const SellPage = () => {
       const target = prev[index];
       if (target) {
         URL.revokeObjectURL(target.previewUrl);
+        setPanoramicHotspots((existing) =>
+          existing.filter(
+            (hotspot) =>
+              hotspot.fromSceneKey !== target.id &&
+              hotspot.toSceneKey !== target.id,
+          ),
+        );
       }
       return prev.filter((_, i) => i !== index);
     });
   };
 
-  const handleNext = (e) => {
+  const addHotspot = () => {
+    if (panoramicImages.length < 2) {
+      setError("Add at least two panoramic images to create hotspots.");
+      return;
+    }
+    const fromSceneKey = panoramicImages[0].id;
+    const toSceneKey = panoramicImages[1].id;
+    setPanoramicHotspots((prev) => [
+      ...prev,
+      {
+        id: `hotspot-${Date.now()}-${prev.length}`,
+        fromSceneKey,
+        toSceneKey,
+        pitch: "",
+        yaw: "",
+        text: "",
+      },
+    ]);
+  };
+
+  const updateHotspotField = (hotspotId, field, value) => {
+    setPanoramicHotspots((prev) =>
+      prev.map((hotspot) =>
+        hotspot.id === hotspotId ? { ...hotspot, [field]: value } : hotspot,
+      ),
+    );
+  };
+
+  const removeHotspot = (hotspotId) => {
+    setPanoramicHotspots((prev) =>
+      prev.filter((hotspot) => hotspot.id !== hotspotId),
+    );
+  };
+
+  const toNumberOrNull = (value) => {
+    if (value === "" || value === null || value === undefined) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const handleNext = async (e) => {
     e.preventDefault();
     if (step < 3) {
+      if (step === 2) {
+        await requestPredictedPrice({
+          showSuccess: false,
+          showError: false,
+        });
+      }
       setStep((prev) => prev + 1);
     }
   };
@@ -168,72 +357,96 @@ const SellPage = () => {
     }
   };
 
-  const requestPredictedPrice = async ({ showSuccess = true } = {}) => {
-    setError("");
+  const requestPredictedPrice = useCallback(
+    async ({ showSuccess = true, showError = true } = {}) => {
+      if (showError) {
+        setError("");
+      }
 
-    const requiredFields = [
-      "property_type",
-      "bedrooms",
-      "bathrooms",
-      "size_sqm",
-      "land_size_sqm",
-      "year_built",
-      "county",
-      "subcounty",
-    ];
+      const requiredFields = [
+        "property_type",
+        "bedrooms",
+        "bathrooms",
+        "size_sqm",
+        "land_size_sqm",
+        "year_built",
+        "county",
+        "subcounty",
+      ];
 
-    const hasMissingRequiredField = requiredFields.some(
-      (field) => String(formData[field] ?? "").trim() === "",
-    );
-
-    if (hasMissingRequiredField) {
-      setError(
-        "Fill in property type, bedrooms, bathrooms, size, land size, year built, county and subcounty before predicting.",
+      const hasMissingRequiredField = requiredFields.some(
+        (field) => String(formData[field] ?? "").trim() === "",
       );
-      return null;
-    }
-
-    try {
-      setIsPredictingPrice(true);
-      const response = await predictPriceEstimate({
-        property_type: formData.property_type,
+      const numericValues = {
         bedrooms: Number(formData.bedrooms),
         bathrooms: Number(formData.bathrooms),
         size_sqm: Number(formData.size_sqm),
         land_size_sqm: Number(formData.land_size_sqm),
         year_built: Number(formData.year_built),
-        county: formData.county,
-        subcounty: formData.subcounty,
-        year_property_was_advertised: new Date().getFullYear(),
-        amenity_ids: formData.selectedAmenities,
-      });
+      };
+      const hasInvalidNumericField = [
+        !Number.isFinite(numericValues.bedrooms) || numericValues.bedrooms < 0,
+        !Number.isFinite(numericValues.bathrooms) || numericValues.bathrooms < 0,
+        !Number.isFinite(numericValues.size_sqm) || numericValues.size_sqm <= 0,
+        !Number.isFinite(numericValues.land_size_sqm) || numericValues.land_size_sqm <= 0,
+        !Number.isFinite(numericValues.year_built) || numericValues.year_built < 1800,
+      ].some(Boolean);
 
-      const predictedPrice = Number(response.data?.data?.predicted_price);
-      if (!Number.isFinite(predictedPrice)) {
-        throw new Error("Prediction response is missing a valid price.");
+      if (hasMissingRequiredField || hasInvalidNumericField) {
+        if (showError) {
+          setError(
+            "Fill in valid property type, bedrooms, bathrooms, size, land size, year built, county and subcounty before predicting.",
+          );
+        }
+        return null;
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        predicted_price: String(predictedPrice),
-      }));
+      try {
+        setIsPredictingPrice(true);
+        const response = await predictPriceEstimate({
+          property_type: formData.property_type,
+          bedrooms: numericValues.bedrooms,
+          bathrooms: numericValues.bathrooms,
+          size_sqm: numericValues.size_sqm,
+          land_size_sqm: numericValues.land_size_sqm,
+          year_built: numericValues.year_built,
+          county: formData.county,
+          subcounty: formData.subcounty,
+          year_property_was_advertised: new Date().getFullYear(),
+          amenity_ids: formData.selectedAmenities,
+        });
 
-      if (showSuccess) {
-        setSuccessMessage("Predicted price updated from the ML model.");
+        const predictedPrice = Number(response.data?.data?.predicted_price);
+        if (!Number.isFinite(predictedPrice)) {
+          throw new Error("Prediction response is missing a valid price.");
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          predicted_price: String(predictedPrice),
+        }));
+
+        if (showSuccess) {
+          setSuccessMessage("Predicted price updated from the ML model.");
+        }
+
+        return predictedPrice;
+      } catch (err) {
+        if (showError) {
+          setError(
+            err.response?.data?.error ||
+              err.response?.data?.detail ||
+              err.message ||
+              "Failed to predict price right now.",
+          );
+        }
+        return null;
+      } finally {
+        setIsPredictingPrice(false);
       }
-
-      return predictedPrice;
-    } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Failed to predict price right now.",
-      );
-      return null;
-    } finally {
-      setIsPredictingPrice(false);
-    }
-  };
+    },
+    [formData],
+  );
 
   const LocationMarker = () => {
     useMapEvents({
@@ -261,9 +474,24 @@ const SellPage = () => {
       return;
     }
 
+    const invalidHotspot = panoramicHotspots.find((hotspot) => {
+      if (!hotspot.fromSceneKey || !hotspot.toSceneKey) return true;
+      const pitch = Number(hotspot.pitch);
+      const yaw = Number(hotspot.yaw);
+      return !Number.isFinite(pitch) || !Number.isFinite(yaw);
+    });
+
+    if (invalidHotspot) {
+      setError("Please complete all hotspot fields with valid numbers.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      const predictedPrice = await requestPredictedPrice({ showSuccess: false });
+      const existingPredictedPrice = Number(formData.predicted_price);
+      const predictedPrice = Number.isFinite(existingPredictedPrice)
+        ? existingPredictedPrice
+        : await requestPredictedPrice({ showSuccess: false });
       if (predictedPrice === null) {
         return;
       }
@@ -308,11 +536,63 @@ const SellPage = () => {
         JSON.stringify(images.map((image) => image.image_type)),
       );
 
-      await addHouseImages(propertyId, imageFormData);
+      const imageUploadResponse = await addHouseImages(propertyId, imageFormData);
+      const uploadedProperty = imageUploadResponse.data?.data;
+      const uploadedImages = uploadedProperty?.images || [];
+      const uploadedPanoramicImages = uploadedImages
+        .filter((image) => image.image_type === "panoramic")
+        .sort((a, b) => a.display_order - b.display_order);
+
+      if (panoramicImages.length > 0 && uploadedPanoramicImages.length > 0) {
+        const sceneIdByKey = {};
+        const sceneCount = Math.min(
+          panoramicImages.length,
+          uploadedPanoramicImages.length,
+        );
+
+        for (let i = 0; i < sceneCount; i += 1) {
+          const localScene = panoramicImages[i];
+          const uploadedSceneImage = uploadedPanoramicImages[i];
+          const scenePayload = {
+            name: getSceneLabel(localScene, i),
+            image_url: uploadedSceneImage.image_url,
+            pitch: toNumberOrNull(localScene.scene_pitch),
+            yaw: toNumberOrNull(localScene.scene_yaw),
+            hfov: toNumberOrNull(localScene.scene_hfov),
+            display_order: i,
+          };
+
+          const createdScene = await createPanoramicScene(
+            propertyId,
+            scenePayload,
+          );
+          const createdId = createdScene.data?.data?.id;
+          if (createdId) {
+            sceneIdByKey[localScene.id] = createdId;
+          }
+        }
+
+        if (panoramicHotspots.length > 0) {
+          for (const hotspot of panoramicHotspots) {
+            const sceneId = sceneIdByKey[hotspot.fromSceneKey];
+            const targetSceneId = sceneIdByKey[hotspot.toSceneKey];
+            if (!sceneId || !targetSceneId) continue;
+
+            await createPanoramicHotspot(sceneId, {
+              target_scene_id: targetSceneId,
+              type: "scene",
+              text: String(hotspot.text || "").trim() || null,
+              pitch: Number(hotspot.pitch),
+              yaw: Number(hotspot.yaw),
+            });
+          }
+        }
+      }
 
       setSuccessMessage("Property listing submitted successfully.");
       setStep(1);
       setImages([]);
+      setPanoramicHotspots([]);
       setFormData({
         description: "",
         property_type: "",
@@ -670,42 +950,6 @@ const SellPage = () => {
                         </div>
                       </div>
 
-                      <div className="row">
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label fw-semibold">
-                            Latitude <span className="text-danger">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            step="any"
-                            className="form-control rounded-4"
-                            placeholder="e.g. -1.2921"
-                            value={formData.latitude}
-                            onChange={handleLatitudeChange}
-                            min="-90"
-                            max="90"
-                            required
-                          />
-                        </div>
-
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label fw-semibold">
-                            Longitude <span className="text-danger">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            step="any"
-                            className="form-control rounded-4"
-                            placeholder="e.g., 36.8219"
-                            value={formData.longitude}
-                            onChange={handleLongitudeChange}
-                            min="-180"
-                            max="180"
-                            required
-                          />
-                        </div>
-                      </div>
-
                       <div className="mb-4">
                         <label className="form-label fw-semibold">
                           Select Property Location{" "}
@@ -713,7 +957,8 @@ const SellPage = () => {
                         </label>
                         <p className="text-primary small mb-2">
                           <i className="bi bi-info-circle me-1 text-primary"></i>
-                          Click on the map to set your property location
+                          Click on the map to set your property location. The
+                          coordinates will be captured automatically.
                         </p>
                         <div
                           className="border rounded-3 border-primary"
@@ -745,59 +990,8 @@ const SellPage = () => {
                         </small>
                       </div>
 
-                      <div className="row">
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label fw-semibold">
-                            Predicted Price (KES)
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control rounded-4 bg-light"
-                            value={
-                              formData.predicted_price ||
-                              "Will use listing price"
-                            }
-                            readOnly
-                            disabled
-                          />
-                          <small className="text-primary">
-                            Uses the ML prediction endpoint. Add amenities in step
-                            2, then refresh for a better estimate.
-                          </small>
-                          <div className="mt-2">
-                            <button
-                              type="button"
-                              className="btn btn-outline-primary rounded-4 px-3"
-                              onClick={() => requestPredictedPrice()}
-                              disabled={isPredictingPrice}
-                            >
-                              {isPredictingPrice
-                                ? "Predicting..."
-                                : "Get Predicted Price"}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label fw-semibold">
-                            Listing Price (KES){" "}
-                            <span className="text-danger">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            step="1000"
-                            className="form-control rounded-4"
-                            placeholder="e.g. 18000000"
-                            min="0"
-                            name="price"
-                            value={formData.price}
-                            onChange={handleInputChange}
-                            required
-                          />
-                          <small className="text-primary">
-                            Your asking price
-                          </small>
-                        </div>
+                      <div className="text-muted small">
+                        Continue to amenities and pricing in the next step.
                       </div>
                     </div>
                   )}
@@ -847,6 +1041,61 @@ const SellPage = () => {
                       <div className="alert alert-primary mt-4" role="alert">
                         <i className="bi bi-info-circle me-2"></i>
                         Selected {formData.selectedAmenities.length} amenities
+                      </div>
+
+                      <div className="row mt-4">
+                        <div className="col-md-6 mb-3">
+                          <label className="form-label fw-semibold">
+                            Predicted Price (KES)
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control rounded-4 bg-light"
+                            value={
+                              formData.predicted_price ||
+                              "Will use listing price"
+                            }
+                            readOnly
+                            disabled
+                          />
+                          <small className="text-primary d-block mt-1">
+                            Uses the ML prediction endpoint after amenities are
+                            selected.
+                          </small>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary rounded-4 px-3"
+                              onClick={() => requestPredictedPrice()}
+                              disabled={isPredictingPrice}
+                            >
+                              {isPredictingPrice
+                                ? "Predicting..."
+                                : "Get Predicted Price"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="col-md-6 mb-3">
+                          <label className="form-label fw-semibold">
+                            Listing Price (KES){" "}
+                            <span className="text-danger">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            step="1000"
+                            className="form-control rounded-4"
+                            placeholder="e.g. 18000000"
+                            min="0"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleInputChange}
+                            required
+                          />
+                          <small className="text-primary">
+                            Your asking price
+                          </small>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -955,6 +1204,305 @@ const SellPage = () => {
                           </div>
                         ))}
                       </div>
+
+                      {panoramicImages.length > 0 && (
+                        <div className="card border-primary shadow-sm mb-4">
+                          <div className="card-body">
+                            <h5 className="fw-semibold mb-2">
+                              Panoramic Tour Setup (optional)
+                            </h5>
+                            <p className="text-muted small mb-4">
+                              Name each panoramic scene and set the initial view.
+                            </p>
+                            <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-2">
+                              <p className="text-muted small mb-0">
+                                Tip: open the preview and click inside the viewer to
+                                read the pitch/yaw values below.
+                              </p>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() =>
+                                  setShowTourPreview((prev) => !prev)
+                                }
+                              >
+                                {showTourPreview ? "Hide Preview" : "Preview Tour"}
+                              </button>
+                            </div>
+                            <div className="alert alert-info small mb-4" role="alert">
+                              <div className="fw-semibold mb-1">
+                                What do Pitch, Yaw, HFOV, and Hotspots mean?
+                              </div>
+                              <div>
+                                Pitch controls up/down tilt, yaw controls left/right
+                                rotation, and HFOV is the zoom level (field of view).
+                                Hotspots are clickable points that jump visitors to
+                                another scene (for example, a door to the next room).
+                              </div>
+                            </div>
+
+                            {panoramicImages.map((image, sceneIndex) => {
+                              const imageIndex = images.findIndex(
+                                (item) => item.id === image.id,
+                              );
+                              if (imageIndex === -1) return null;
+
+                              return (
+                                <div
+                                  key={`scene-${image.id}`}
+                                  className="border rounded-3 p-3 mb-3"
+                                >
+                                  <div className="row g-3 align-items-end">
+                                    <div className="col-md-6">
+                                      <label className="form-label fw-semibold">
+                                        Scene Name
+                                      </label>
+                                      <input
+                                        className="form-control"
+                                        placeholder={`e.g. Living Room`}
+                                        value={image.scene_name}
+                                        onChange={(e) =>
+                                          handleSceneFieldChange(
+                                            imageIndex,
+                                            "scene_name",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="col-md-2">
+                                      <label className="form-label fw-semibold">
+                                        Pitch
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        className="form-control"
+                                        placeholder="e.g. 5"
+                                        value={image.scene_pitch}
+                                        onChange={(e) =>
+                                          handleSceneFieldChange(
+                                            imageIndex,
+                                            "scene_pitch",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="col-md-2">
+                                      <label className="form-label fw-semibold">
+                                        Yaw
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        className="form-control"
+                                        placeholder="e.g. 120"
+                                        value={image.scene_yaw}
+                                        onChange={(e) =>
+                                          handleSceneFieldChange(
+                                            imageIndex,
+                                            "scene_yaw",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="col-md-2">
+                                      <label className="form-label fw-semibold">
+                                        HFOV
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        className="form-control"
+                                        placeholder="e.g. 110"
+                                        value={image.scene_hfov}
+                                        onChange={(e) =>
+                                          handleSceneFieldChange(
+                                            imageIndex,
+                                            "scene_hfov",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {panoramicImages.length > 1 && (
+                              <div className="mt-4">
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                  <h6 className="fw-semibold mb-0">
+                                    Tour Hotspots
+                                  </h6>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={addHotspot}
+                                  >
+                                    Add Hotspot
+                                  </button>
+                                </div>
+
+                                {panoramicHotspots.length === 0 && (
+                                  <p className="text-muted small mb-0">
+                                    No hotspots added yet.
+                                  </p>
+                                )}
+
+                                {panoramicHotspots.map((hotspot, hotspotIndex) => (
+                                  <div
+                                    key={hotspot.id}
+                                    className="border rounded-3 p-3 mb-3"
+                                  >
+                                    <div className="row g-3 align-items-end">
+                                      <div className="col-md-4">
+                                        <label className="form-label fw-semibold">
+                                          From Scene
+                                        </label>
+                                        <select
+                                          className="form-select"
+                                          value={hotspot.fromSceneKey}
+                                          onChange={(e) =>
+                                            updateHotspotField(
+                                              hotspot.id,
+                                              "fromSceneKey",
+                                              e.target.value,
+                                            )
+                                          }
+                                        >
+                                          {panoramicImages.map(
+                                            (scene, sceneIndex) => (
+                                              <option key={scene.id} value={scene.id}>
+                                                {getSceneLabel(scene, sceneIndex)}
+                                              </option>
+                                            ),
+                                          )}
+                                        </select>
+                                      </div>
+                                      <div className="col-md-4">
+                                        <label className="form-label fw-semibold">
+                                          To Scene
+                                        </label>
+                                        <select
+                                          className="form-select"
+                                          value={hotspot.toSceneKey}
+                                          onChange={(e) =>
+                                            updateHotspotField(
+                                              hotspot.id,
+                                              "toSceneKey",
+                                              e.target.value,
+                                            )
+                                          }
+                                        >
+                                          {panoramicImages.map(
+                                            (scene, sceneIndex) => (
+                                              <option key={scene.id} value={scene.id}>
+                                                {getSceneLabel(scene, sceneIndex)}
+                                              </option>
+                                            ),
+                                          )}
+                                        </select>
+                                      </div>
+                                      <div className="col-md-2">
+                                        <label className="form-label fw-semibold">
+                                          Pitch
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          className="form-control"
+                                          placeholder="e.g. -5"
+                                          value={hotspot.pitch}
+                                          onChange={(e) =>
+                                            updateHotspotField(
+                                              hotspot.id,
+                                              "pitch",
+                                              e.target.value,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                      <div className="col-md-2">
+                                        <label className="form-label fw-semibold">
+                                          Yaw
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          className="form-control"
+                                          placeholder="e.g. 140"
+                                          value={hotspot.yaw}
+                                          onChange={(e) =>
+                                            updateHotspotField(
+                                              hotspot.id,
+                                              "yaw",
+                                              e.target.value,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="row g-3 mt-1 align-items-end">
+                                      <div className="col-md-10">
+                                        <label className="form-label fw-semibold">
+                                          Label (optional)
+                                        </label>
+                                        <input
+                                          className="form-control"
+                                          placeholder="e.g. Go to Kitchen"
+                                          value={hotspot.text}
+                                          onChange={(e) =>
+                                            updateHotspotField(
+                                              hotspot.id,
+                                              "text",
+                                              e.target.value,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                      <div className="col-md-2 d-flex justify-content-end">
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline-danger mt-2"
+                                          onClick={() => removeHotspot(hotspot.id)}
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {showTourPreview && (
+                              <div className="mt-4">
+                                <PannellumPreview
+                                  scenes={panoramicImages}
+                                  hotspots={panoramicHotspots}
+                                  onCoordinatePick={handlePreviewCoordPick}
+                                />
+                                <div className="text-muted small mt-2">
+                                  {lastPreviewCoords ? (
+                                    <>
+                                      Last click — Pitch:{" "}
+                                      {lastPreviewCoords.pitch.toFixed(2)}°, Yaw:{" "}
+                                      {lastPreviewCoords.yaw.toFixed(2)}°
+                                    </>
+                                  ) : (
+                                    "Click inside the preview to capture pitch/yaw values."
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="alert alert-warning" role="alert">
                         <i className="bi bi-exclamation-triangle me-2"></i>

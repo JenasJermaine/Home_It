@@ -3,6 +3,7 @@
   color: #000;
   cursor: pointer;
   transition: all 0.2s ease;
+  margin-bottom: 3px;
   padding: 6px 8px;
   border-radius: 8px;
   display: flex;
@@ -15,7 +16,16 @@
   color: white;
 }
 
+.sidebar-item.active {
+  background-color: var(--bs-primary);
+  color: white;
+}
+
 .sidebar-item:hover i {
+  color: white;
+}
+
+.sidebar-item.active i {
   color: white;
 }
 

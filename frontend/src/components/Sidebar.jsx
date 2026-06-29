@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { buildMediaUrl, getMyProfile } from "../api/apiService";
 import { useEffect, useMemo, useState } from "react";
 
@@ -39,6 +39,9 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
   const toggleSidebar = () => {
     setIsExpanded(!isExpanded);
   };
+
+  const sidebarLinkClass = ({ isActive }) =>
+    `sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none${isActive ? " active" : ""}`;
 
   return (
     <>
@@ -107,73 +110,73 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
               <hr className="border-primary opacity-100" />
             </div>
             <div>
-              <Link
+              <NavLink
                 to="/"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i className="bi bi-house" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">Home</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Buy"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i className="bi bi-bag" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">Buy</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Sell"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i
                   className="bi bi-cash-stack"
                   style={{ fontSize: "20px" }}
                 ></i>
                 {isExpanded && <p className="m-0">Sell</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Mylistings"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i className="bi bi-kanban" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">My Listings</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Priceestimator"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i className="bi bi-graph-up" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">Price Estimator</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Bookmarks"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i
                   className="bi bi-bookmark-heart"
                   style={{ fontSize: "20px" }}
                 ></i>
                 {isExpanded && <p className="m-0">Bookmarks</p>}
-              </Link>
+              </NavLink>
             </div>
             <div className="mt-auto">
-              <Link
+              <NavLink
                 to="/Help"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i
                   className="bi bi-question-circle"
                   style={{ fontSize: "20px" }}
                 ></i>
                 {isExpanded && <p className="m-0">Help</p>}
-              </Link>
-              <Link
+              </NavLink>
+              <NavLink
                 to="/Settings"
-                className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+                className={sidebarLinkClass}
               >
                 <i className="bi bi-gear" style={{ fontSize: "20px" }}></i>
                 {isExpanded && <p className="m-0">Settings</p>}
-              </Link>
+              </NavLink>
               <hr className="border-primary opacity-100" />
               <Link
                 to="/Profile"
@@ -258,13 +261,20 @@ const Sidebar = ({ isExpanded, setIsExpanded }) => {
             </button>
             <hr className="border-primary opacity-100" />
           </div>
-          <Link
+          <NavLink
             to="/"
-            className="sidebar-item d-flex align-items-center gap-2 rounded text-decoration-none"
+            className={sidebarLinkClass}
           >
             <i className="bi bi-house" style={{ fontSize: "20px" }}></i>
             {isExpanded && <p className="m-0">Home</p>}
-          </Link>
+          </NavLink>
+          <NavLink
+            to="/Buy"
+            className={sidebarLinkClass}
+          >
+            <i className="bi bi-bag" style={{ fontSize: "20px" }}></i>
+            {isExpanded && <p className="m-0">Buy</p>}
+          </NavLink>
         </div>
       )}
     </>

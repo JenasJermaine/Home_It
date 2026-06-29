@@ -89,7 +89,7 @@ const SignInPage = () => {
       <div className="w-50">
         <img
           src="/images/House2.jpg"
-          alt="Image of a House"
+          alt="House exterior"
           className="img-fluid w-100 h-100 object-fit-cover rounded-start-5"
         />
       </div>

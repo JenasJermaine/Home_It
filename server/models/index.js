@@ -3,6 +3,8 @@ import config from "../config/config.js";
 import userModel from "./user.js";
 import propertyModel from "./property.js";
 import propertyImageModel from "./property_image.js";
+import panoramicSceneModel from "./panoramic_scene.js";
+import panoramicHotspotModel from "./panoramic_hotspot.js";
 import amenityModel from "./amenity.js";
 import propertyAmenityModel from "./property_amenity.js";
 import bookmarkModel from "./bookmark.js";
@@ -35,6 +37,8 @@ db.sequelize = sequelize;
 db.User = userModel(sequelize, Sequelize);
 db.Property = propertyModel(sequelize, Sequelize);
 db.PropertyImage = propertyImageModel(sequelize, Sequelize);
+db.PanoramicScene = panoramicSceneModel(sequelize, Sequelize);
+db.PanoramicHotspot = panoramicHotspotModel(sequelize, Sequelize);
 db.Amenity = amenityModel(sequelize, Sequelize);
 db.PropertyAmenity = propertyAmenityModel(sequelize, Sequelize);
 db.Bookmark = bookmarkModel(sequelize, Sequelize);
@@ -67,6 +71,35 @@ db.Property.hasMany(db.PropertyImage, {
 db.PropertyImage.belongsTo(db.Property, {
   foreignKey: "property_id",
   as: "property",
+});
+
+/* =========================
+     PROPERTIES ↔ PANORAMIC SCENES ↔ HOTSPOTS
+  ========================= */
+
+db.Property.hasMany(db.PanoramicScene, {
+  foreignKey: "property_id",
+  as: "panoramic_scenes",
+});
+
+db.PanoramicScene.belongsTo(db.Property, {
+  foreignKey: "property_id",
+  as: "property",
+});
+
+db.PanoramicScene.hasMany(db.PanoramicHotspot, {
+  foreignKey: "scene_id",
+  as: "hotspots",
+});
+
+db.PanoramicHotspot.belongsTo(db.PanoramicScene, {
+  foreignKey: "scene_id",
+  as: "scene",
+});
+
+db.PanoramicHotspot.belongsTo(db.PanoramicScene, {
+  foreignKey: "target_scene_id",
+  as: "target_scene",
 });
 
 /* =========================

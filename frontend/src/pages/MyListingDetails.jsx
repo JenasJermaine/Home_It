@@ -1,24 +1,125 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "pannellum/build/pannellum.css";
+import "pannellum/build/pannellum.js";
 import {
   buildMediaUrl,
+  createPanoramicHotspot,
+  createPanoramicScene,
+  deletePanoramicHotspot,
+  deletePanoramicScene,
   deleteAllHouseImages,
   deleteSingleHouseImage,
   ensureMlModelAmenities,
   getMyProfile,
+  getPanoramicTourByProperty,
   getPropertyById,
   modifyBasicHouseInfo,
   modifyHouseAmenities,
   modifyHouseImages,
   predictPriceEstimate,
+  updatePanoramicHotspot,
+  updatePanoramicScene,
 } from "../api/apiService";
 
 const MAX_TOTAL_IMAGES = 15;
 const DEFAULT_LAT = -1.2921;
 const DEFAULT_LNG = 36.8219;
+const YAW_EDGE_LIMIT = 179;
+
+const PannellumTourPreview = ({ scenes, onCoordinatePick }) => {
+  const viewerRef = useRef(null);
+  const instanceRef = useRef(null);
+
+  useEffect(() => {
+    if (!viewerRef.current || scenes.length === 0) return;
+    const pannellum = window.pannellum;
+    if (!pannellum?.viewer) return;
+
+    const toNumber = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const sceneConfig = {};
+    scenes.forEach((scene) => {
+      const hotSpots = (scene.hotspots || [])
+        .map((hotspot) => {
+          const pitch = toNumber(hotspot.pitch, null);
+          const yaw = toNumber(hotspot.yaw, null);
+          if (pitch === null || yaw === null) return null;
+
+          return {
+            pitch,
+            yaw,
+            type: "scene",
+            text: hotspot.text || "",
+            sceneId: hotspot.target_scene_id
+              ? String(hotspot.target_scene_id)
+              : undefined,
+          };
+        })
+        .filter(Boolean);
+
+      sceneConfig[String(scene.id)] = {
+        type: "equirectangular",
+        panorama: buildMediaUrl(scene.image_url),
+        pitch: toNumber(scene.pitch),
+        yaw: toNumber(scene.yaw),
+        hfov: toNumber(scene.hfov, 110),
+        minYaw: -YAW_EDGE_LIMIT,
+        maxYaw: YAW_EDGE_LIMIT,
+        hotSpots,
+      };
+    });
+
+    instanceRef.current = pannellum.viewer(viewerRef.current, {
+      autoLoad: true,
+      showZoomCtrl: true,
+      showFullscreenCtrl: true,
+      default: {
+        firstScene: String(scenes[0]?.id),
+        sceneFadeDuration: 1000,
+      },
+      scenes: sceneConfig,
+    });
+
+    const container = instanceRef.current.getContainer();
+    const handleClick = (event) => {
+      if (!instanceRef.current) return;
+      const coords = instanceRef.current.mouseEventToCoords
+        ? instanceRef.current.mouseEventToCoords(event)
+        : [instanceRef.current.getPitch(), instanceRef.current.getYaw()];
+      if (coords && onCoordinatePick) {
+        onCoordinatePick(coords);
+      }
+    };
+
+    container.addEventListener("click", handleClick);
+
+    return () => {
+      container.removeEventListener("click", handleClick);
+      if (instanceRef.current) {
+        instanceRef.current.destroy();
+      }
+    };
+  }, [scenes, onCoordinatePick]);
+
+  return (
+    <div
+      ref={viewerRef}
+      style={{
+        width: "100%",
+        height: "320px",
+        borderRadius: "12px",
+        overflow: "hidden",
+      }}
+    />
+  );
+};
 
 const MyListingDetailsPage = () => {
   const { id } = useParams();
@@ -36,6 +137,18 @@ const MyListingDetailsPage = () => {
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [newImages, setNewImages] = useState([]);
+  const newImagesRef = useRef([]);
+  const [panoramicScenes, setPanoramicScenes] = useState([]);
+  const [showTourPreview, setShowTourPreview] = useState(false);
+  const [lastPreviewCoords, setLastPreviewCoords] = useState(null);
+  const [newScene, setNewScene] = useState({
+    image_url: "",
+    name: "",
+    pitch: "",
+    yaw: "",
+    hfov: "",
+  });
+  const [newHotspots, setNewHotspots] = useState({});
   const [markerPosition, setMarkerPosition] = useState([
     DEFAULT_LAT,
     DEFAULT_LNG,
@@ -95,12 +208,25 @@ const MyListingDetailsPage = () => {
     }
   };
 
+  const loadPanoramicScenes = useCallback(async () => {
+    try {
+      const response = await getPanoramicTourByProperty(id);
+      setPanoramicScenes(response.data?.data || []);
+    } catch (err) {
+      setPanoramicScenes([]);
+      setError(
+        err.response?.data?.error || "Failed to load panoramic tour data.",
+      );
+    }
+  }, [id]);
+
   const reloadPropertyOnly = async () => {
     const propertyResponse = await getPropertyById(id);
     const property = propertyResponse.data?.data;
     if (property) {
       applyPropertyToState(property);
     }
+    await loadPanoramicScenes();
   };
 
   useEffect(() => {
@@ -127,6 +253,7 @@ const MyListingDetailsPage = () => {
         const loadedAmenities = await ensureMlModelAmenities();
         setAllAmenities(loadedAmenities);
         applyPropertyToState(property);
+        await loadPanoramicScenes();
       } catch (err) {
         setError(
           err.response?.data?.error || "Failed to load property details.",
@@ -137,28 +264,228 @@ const MyListingDetailsPage = () => {
     };
 
     loadProperty();
-  }, [id]);
+  }, [id, loadPanoramicScenes]);
+
+  const panoramicImages = useMemo(
+    () => existingImages.filter((image) => image.image_type === "panoramic"),
+    [existingImages],
+  );
+
+  const availablePanoramicImages = useMemo(() => {
+    const usedImages = new Set(panoramicScenes.map((scene) => scene.image_url));
+    return panoramicImages.filter((image) => !usedImages.has(image.image_url));
+  }, [panoramicImages, panoramicScenes]);
+
+  const handlePreviewCoordPick = useCallback((coords) => {
+    if (!Array.isArray(coords)) return;
+    const [pitch, yaw] = coords;
+    if (!Number.isFinite(pitch) || !Number.isFinite(yaw)) return;
+    setLastPreviewCoords({ pitch, yaw });
+  }, []);
+
+  useEffect(() => {
+    newImagesRef.current = newImages;
+  }, [newImages]);
 
   useEffect(
     () => () => {
-      newImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      newImagesRef.current.forEach((image) =>
+        URL.revokeObjectURL(image.previewUrl),
+      );
     },
-    [newImages],
+    [],
   );
+
+  useEffect(() => {
+    if (panoramicScenes.length === 0) {
+      setShowTourPreview(false);
+      setLastPreviewCoords(null);
+    }
+  }, [panoramicScenes.length]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => {
-      const next = { ...prev, [name]: value };
-      if (name === "latitude" || name === "longitude") {
-        const lat = Number(next.latitude);
-        const lng = Number(next.longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          setMarkerPosition([lat, lng]);
-        }
-      }
-      return next;
-    });
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const toNumberOrNull = (value) => {
+    if (value === "" || value === null || value === undefined) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const updateSceneField = (sceneId, field, value) => {
+    setPanoramicScenes((prev) =>
+      prev.map((scene) =>
+        scene.id === sceneId ? { ...scene, [field]: value } : scene,
+      ),
+    );
+  };
+
+  const saveScene = async (scene) => {
+    setError("");
+    setSuccessMessage("");
+    try {
+      await updatePanoramicScene(scene.id, {
+        name: scene.name,
+        image_url: scene.image_url,
+        pitch: toNumberOrNull(scene.pitch),
+        yaw: toNumberOrNull(scene.yaw),
+        hfov: toNumberOrNull(scene.hfov),
+        display_order: scene.display_order ?? 0,
+      });
+      await loadPanoramicScenes();
+      setSuccessMessage("Scene updated successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to update scene.");
+    }
+  };
+
+  const removeScene = async (sceneId) => {
+    const confirmed = window.confirm("Delete this scene and its hotspots?");
+    if (!confirmed) return;
+    setError("");
+    setSuccessMessage("");
+    try {
+      await deletePanoramicScene(sceneId);
+      await loadPanoramicScenes();
+      setSuccessMessage("Scene deleted successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to delete scene.");
+    }
+  };
+
+  const updateHotspotField = (sceneId, hotspotId, field, value) => {
+    setPanoramicScenes((prev) =>
+      prev.map((scene) => {
+        if (scene.id !== sceneId) return scene;
+        return {
+          ...scene,
+          hotspots: (scene.hotspots || []).map((hotspot) =>
+            hotspot.id === hotspotId
+              ? { ...hotspot, [field]: value }
+              : hotspot,
+          ),
+        };
+      }),
+    );
+  };
+
+  const saveHotspot = async (sceneId, hotspot) => {
+    setError("");
+    setSuccessMessage("");
+    const pitch = Number(hotspot.pitch);
+    const yaw = Number(hotspot.yaw);
+    if (!hotspot.target_scene_id) {
+      setError("Select a target scene for the hotspot.");
+      return;
+    }
+    if (!Number.isFinite(pitch) || !Number.isFinite(yaw)) {
+      setError("Enter valid pitch and yaw values for the hotspot.");
+      return;
+    }
+    try {
+      await updatePanoramicHotspot(hotspot.id, {
+        target_scene_id: Number(hotspot.target_scene_id),
+        type: "scene",
+        text: String(hotspot.text || "").trim() || null,
+        pitch,
+        yaw,
+      });
+      await loadPanoramicScenes();
+      setSuccessMessage("Hotspot updated successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to update hotspot.");
+    }
+  };
+
+  const removeHotspot = async (hotspotId) => {
+    setError("");
+    setSuccessMessage("");
+    try {
+      await deletePanoramicHotspot(hotspotId);
+      await loadPanoramicScenes();
+      setSuccessMessage("Hotspot deleted successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to delete hotspot.");
+    }
+  };
+
+  const updateNewSceneField = (field, value) => {
+    setNewScene((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const createScene = async () => {
+    if (!newScene.image_url) {
+      setError("Select a panoramic image for the new scene.");
+      return;
+    }
+    setError("");
+    setSuccessMessage("");
+    try {
+      await createPanoramicScene(id, {
+        name: newScene.name || "New Scene",
+        image_url: newScene.image_url,
+        pitch: toNumberOrNull(newScene.pitch),
+        yaw: toNumberOrNull(newScene.yaw),
+        hfov: toNumberOrNull(newScene.hfov),
+        display_order: panoramicScenes.length,
+      });
+      setNewScene({
+        image_url: "",
+        name: "",
+        pitch: "",
+        yaw: "",
+        hfov: "",
+      });
+      await loadPanoramicScenes();
+      setSuccessMessage("Scene added successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to add scene.");
+    }
+  };
+
+  const updateNewHotspot = (sceneId, field, value) => {
+    setNewHotspots((prev) => ({
+      ...prev,
+      [sceneId]: {
+        ...prev[sceneId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const addHotspot = async (sceneId) => {
+    const draft = newHotspots[sceneId];
+    if (!draft?.target_scene_id) {
+      setError("Choose a target scene for the hotspot.");
+      return;
+    }
+    const pitch = Number(draft.pitch);
+    const yaw = Number(draft.yaw);
+    if (!Number.isFinite(pitch) || !Number.isFinite(yaw)) {
+      setError("Enter valid pitch and yaw values for the hotspot.");
+      return;
+    }
+    setError("");
+    setSuccessMessage("");
+    try {
+      await createPanoramicHotspot(sceneId, {
+        target_scene_id: Number(draft.target_scene_id),
+        type: "scene",
+        text: String(draft.text || "").trim() || null,
+        pitch,
+        yaw,
+      });
+      setNewHotspots((prev) => ({
+        ...prev,
+        [sceneId]: { target_scene_id: "", pitch: "", yaw: "", text: "" },
+      }));
+      await loadPanoramicScenes();
+      setSuccessMessage("Hotspot added successfully.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to add hotspot.");
+    }
   };
 
   const mapMarkerIcon = L.icon({
@@ -646,46 +973,14 @@ const MyListingDetailsPage = () => {
                         />
                       </div>
 
-                      <div className="col-md-6">
-                        <label className="form-label fw-semibold">
-                          Latitude
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="-90"
-                          max="90"
-                          name="latitude"
-                          className="form-control"
-                          value={formData.latitude}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label fw-semibold">
-                          Longitude
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="-180"
-                          max="180"
-                          name="longitude"
-                          className="form-control"
-                          value={formData.longitude}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-
                       <div className="col-12">
                         <label className="form-label fw-semibold">
                           Property Location on Map
                         </label>
                         <p className="text-primary small mb-2">
                           <i className="bi bi-info-circle me-1 text-primary"></i>
-                          Click the map to update exact coordinates.
+                          Click the map to update exact coordinates. The values
+                          are saved automatically.
                         </p>
                         <div
                           className="border rounded-3 border-primary"
@@ -715,6 +1010,45 @@ const MyListingDetailsPage = () => {
                           {Number(formData.latitude).toFixed(6)},{" "}
                           {Number(formData.longitude).toFixed(6)}
                         </small>
+                      </div>
+
+                      <div className="col-12">
+                        <div className="border rounded-3 p-3">
+                          <h5 className="mb-3 fw-semibold">Amenities</h5>
+
+                          <div className="row">
+                            {allAmenities.map((amenity) => (
+                              <div className="col-md-6 col-xl-4 mb-2" key={amenity.id}>
+                                <div className="form-check">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    id={`amenity-${amenity.id}`}
+                                    checked={selectedAmenities.includes(amenity.id)}
+                                    onChange={() => toggleAmenity(amenity.id)}
+                                  />
+                                  <label
+                                    className="form-check-label"
+                                    htmlFor={`amenity-${amenity.id}`}
+                                  >
+                                    {amenity.name}
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-3 d-flex justify-content-end">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary rounded-4 px-4"
+                              onClick={saveAmenities}
+                              disabled={savingAmenities}
+                            >
+                              {savingAmenities ? "Saving..." : "Save Amenities"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="col-md-6">
@@ -773,45 +1107,6 @@ const MyListingDetailsPage = () => {
                       </button>
                     </div>
                   </form>
-                </div>
-              </div>
-
-              <div className="card border-primary shadow-sm mb-4">
-                <div className="card-body">
-                  <h5 className="mb-3 fw-semibold">Amenities</h5>
-
-                  <div className="row">
-                    {allAmenities.map((amenity) => (
-                      <div className="col-md-6 col-xl-4 mb-2" key={amenity.id}>
-                        <div className="form-check">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id={`amenity-${amenity.id}`}
-                            checked={selectedAmenities.includes(amenity.id)}
-                            onChange={() => toggleAmenity(amenity.id)}
-                          />
-                          <label
-                            className="form-check-label"
-                            htmlFor={`amenity-${amenity.id}`}
-                          >
-                            {amenity.name}
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 d-flex justify-content-end">
-                    <button
-                      type="button"
-                      className="btn btn-primary rounded-4 px-4"
-                      onClick={saveAmenities}
-                      disabled={savingAmenities}
-                    >
-                      {savingAmenities ? "Saving..." : "Save Amenities"}
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -934,6 +1229,520 @@ const MyListingDetailsPage = () => {
                       {savingImages ? "Uploading..." : "Upload New Images"}
                     </button>
                   </div>
+                </div>
+              </div>
+
+              <div className="card border-primary shadow-sm mt-4">
+                <div className="card-body">
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="mb-0 fw-semibold">Virtual Tour</h5>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary rounded-4"
+                      onClick={() => setShowTourPreview((prev) => !prev)}
+                      disabled={panoramicScenes.length === 0}
+                    >
+                      {showTourPreview ? "Hide Preview" : "Preview Tour"}
+                    </button>
+                  </div>
+
+                  <p className="text-muted small mb-3">
+                    Upload panoramic images first, then create scenes and link them
+                    with hotspots.
+                  </p>
+
+                  <div className="alert alert-info small mb-4" role="alert">
+                    <div className="fw-semibold mb-1">
+                      What do Pitch, Yaw, HFOV, and Hotspots mean?
+                    </div>
+                    <div>
+                      Pitch controls up/down tilt, yaw controls left/right
+                      rotation, and HFOV is the zoom level (field of view).
+                      Hotspots are clickable points that jump visitors to another
+                      scene (for example, a door to the next room).
+                    </div>
+                  </div>
+
+                  {panoramicScenes.length === 0 ? (
+                    <div className="text-muted">
+                      No panoramic scenes yet. Add one below.
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-column gap-3">
+                      {panoramicScenes.map((scene) => (
+                        <div key={scene.id} className="border rounded-3 p-3">
+                          <div className="row g-3">
+                            <div className="col-md-4">
+                              <img
+                                src={buildMediaUrl(scene.image_url)}
+                                alt="Panoramic scene"
+                                className="w-100 rounded-3"
+                                style={{ height: "140px", objectFit: "cover" }}
+                              />
+                            </div>
+                            <div className="col-md-8">
+                              <div className="row g-3">
+                                <div className="col-md-6">
+                                  <label className="form-label fw-semibold">
+                                    Scene Name
+                                  </label>
+                                  <input
+                                    className="form-control"
+                                    value={scene.name || ""}
+                                    onChange={(e) =>
+                                      updateSceneField(
+                                        scene.id,
+                                        "name",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label className="form-label fw-semibold">
+                                    Scene Image
+                                  </label>
+                                  <select
+                                    className="form-select"
+                                    value={scene.image_url}
+                                    onChange={(e) =>
+                                      updateSceneField(
+                                        scene.id,
+                                        "image_url",
+                                        e.target.value,
+                                      )
+                                    }
+                                  >
+                                    {!panoramicImages.some(
+                                      (image) => image.image_url === scene.image_url,
+                                    ) &&
+                                      scene.image_url && (
+                                        <option value={scene.image_url}>
+                                          {scene.image_url.split("/").pop()}
+                                        </option>
+                                      )}
+                                    {panoramicImages.map((image) => (
+                                      <option
+                                        key={image.id}
+                                        value={image.image_url}
+                                      >
+                                        {image.image_url.split("/").pop()}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="col-md-4">
+                                  <label className="form-label fw-semibold">
+                                    Pitch
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    className="form-control"
+                                    placeholder="e.g. 5"
+                                    value={scene.pitch ?? ""}
+                                    onChange={(e) =>
+                                      updateSceneField(
+                                        scene.id,
+                                        "pitch",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-md-4">
+                                  <label className="form-label fw-semibold">
+                                    Yaw
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    className="form-control"
+                                    placeholder="e.g. 120"
+                                    value={scene.yaw ?? ""}
+                                    onChange={(e) =>
+                                      updateSceneField(
+                                        scene.id,
+                                        "yaw",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-md-4">
+                                  <label className="form-label fw-semibold">
+                                    HFOV
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    className="form-control"
+                                    placeholder="e.g. 110"
+                                    value={scene.hfov ?? ""}
+                                    onChange={(e) =>
+                                      updateSceneField(
+                                        scene.id,
+                                        "hfov",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div className="d-flex gap-2 mt-3">
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-primary rounded-4"
+                                  onClick={() => saveScene(scene)}
+                                >
+                                  Save Scene
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger rounded-4"
+                                  onClick={() => removeScene(scene.id)}
+                                >
+                                  Delete Scene
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3">
+                            <h6 className="fw-semibold mb-2">Hotspots</h6>
+                            {(scene.hotspots || []).length === 0 && (
+                              <p className="text-muted small mb-2">
+                                No hotspots added yet.
+                              </p>
+                            )}
+
+                            {(scene.hotspots || []).map((hotspot) => (
+                              <div
+                                key={hotspot.id}
+                                className="border rounded-3 p-3 mb-2"
+                              >
+                                <div className="row g-3 align-items-end">
+                                  <div className="col-md-4">
+                                    <label className="form-label fw-semibold">
+                                      Target Scene
+                                    </label>
+                                    <select
+                                      className="form-select"
+                                      value={hotspot.target_scene_id || ""}
+                                      onChange={(e) =>
+                                        updateHotspotField(
+                                          scene.id,
+                                          hotspot.id,
+                                          "target_scene_id",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="">Select scene</option>
+                                      {panoramicScenes
+                                        .filter((item) => item.id !== scene.id)
+                                        .map((item) => (
+                                          <option key={item.id} value={item.id}>
+                                            {item.name || `Scene ${item.id}`}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                  <div className="col-md-2">
+                                    <label className="form-label fw-semibold">
+                                      Pitch
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      className="form-control"
+                                      placeholder="e.g. -5"
+                                      value={hotspot.pitch ?? ""}
+                                      onChange={(e) =>
+                                        updateHotspotField(
+                                          scene.id,
+                                          hotspot.id,
+                                          "pitch",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-md-2">
+                                    <label className="form-label fw-semibold">
+                                      Yaw
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      className="form-control"
+                                      placeholder="e.g. 140"
+                                      value={hotspot.yaw ?? ""}
+                                      onChange={(e) =>
+                                        updateHotspotField(
+                                          scene.id,
+                                          hotspot.id,
+                                          "yaw",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-md-4">
+                                    <label className="form-label fw-semibold">
+                                      Label
+                                    </label>
+                                    <input
+                                      className="form-control"
+                                      placeholder="e.g. Go to Kitchen"
+                                      value={hotspot.text || ""}
+                                      onChange={(e) =>
+                                        updateHotspotField(
+                                          scene.id,
+                                          hotspot.id,
+                                          "text",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                                <div className="d-flex gap-2 mt-3">
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-primary rounded-4"
+                                    onClick={() => saveHotspot(scene.id, hotspot)}
+                                  >
+                                    Save Hotspot
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-danger rounded-4"
+                                    onClick={() => removeHotspot(hotspot.id)}
+                                  >
+                                    Delete Hotspot
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+
+                            <div className="border rounded-3 p-3">
+                              <h6 className="fw-semibold mb-2">Add Hotspot</h6>
+                              {panoramicScenes.length < 2 ? (
+                                <p className="text-muted small mb-0">
+                                  Add at least two scenes to create hotspots.
+                                </p>
+                              ) : (
+                                <div className="row g-3 align-items-end">
+                                  <div className="col-md-4">
+                                    <label className="form-label fw-semibold">
+                                      Target Scene
+                                    </label>
+                                    <select
+                                      className="form-select"
+                                      value={newHotspots[scene.id]?.target_scene_id || ""}
+                                      onChange={(e) =>
+                                        updateNewHotspot(
+                                          scene.id,
+                                          "target_scene_id",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="">Select scene</option>
+                                      {panoramicScenes
+                                        .filter((item) => item.id !== scene.id)
+                                        .map((item) => (
+                                          <option key={item.id} value={item.id}>
+                                            {item.name || `Scene ${item.id}`}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                  <div className="col-md-2">
+                                    <label className="form-label fw-semibold">
+                                      Pitch
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      className="form-control"
+                                      placeholder="e.g. -5"
+                                      value={newHotspots[scene.id]?.pitch || ""}
+                                      onChange={(e) =>
+                                        updateNewHotspot(
+                                          scene.id,
+                                          "pitch",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-md-2">
+                                    <label className="form-label fw-semibold">
+                                      Yaw
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      className="form-control"
+                                      placeholder="e.g. 140"
+                                      value={newHotspots[scene.id]?.yaw || ""}
+                                      onChange={(e) =>
+                                        updateNewHotspot(
+                                          scene.id,
+                                          "yaw",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-md-4">
+                                    <label className="form-label fw-semibold">
+                                      Label
+                                    </label>
+                                    <input
+                                      className="form-control"
+                                      placeholder="e.g. Go to Kitchen"
+                                      value={newHotspots[scene.id]?.text || ""}
+                                      onChange={(e) =>
+                                        updateNewHotspot(
+                                          scene.id,
+                                          "text",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-12 d-flex justify-content-end">
+                                    <button
+                                      type="button"
+                                      className="btn btn-outline-primary rounded-4"
+                                      onClick={() => addHotspot(scene.id)}
+                                    >
+                                      Add Hotspot
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border rounded-3 p-3 mt-4">
+                    <h6 className="fw-semibold mb-2">Add New Scene</h6>
+                    {availablePanoramicImages.length === 0 ? (
+                      <p className="text-muted small mb-0">
+                        Upload a panoramic image first to add a new scene.
+                      </p>
+                    ) : (
+                      <div className="row g-3 align-items-end">
+                        <div className="col-md-5">
+                          <label className="form-label fw-semibold">
+                            Panoramic Image
+                          </label>
+                          <select
+                            className="form-select"
+                            value={newScene.image_url}
+                            onChange={(e) =>
+                              updateNewSceneField("image_url", e.target.value)
+                            }
+                          >
+                            <option value="">Select image</option>
+                            {availablePanoramicImages.map((image) => (
+                              <option key={image.id} value={image.image_url}>
+                                {image.image_url.split("/").pop()}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-md-4">
+                          <label className="form-label fw-semibold">
+                            Scene Name
+                          </label>
+                          <input
+                            className="form-control"
+                            placeholder="e.g. Living Room"
+                            value={newScene.name}
+                            onChange={(e) =>
+                              updateNewSceneField("name", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="col-md-1">
+                          <label className="form-label fw-semibold">Pitch</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            placeholder="5"
+                            value={newScene.pitch}
+                            onChange={(e) =>
+                              updateNewSceneField("pitch", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="col-md-1">
+                          <label className="form-label fw-semibold">Yaw</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            placeholder="120"
+                            value={newScene.yaw}
+                            onChange={(e) =>
+                              updateNewSceneField("yaw", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="col-md-1">
+                          <label className="form-label fw-semibold">HFOV</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            placeholder="110"
+                            value={newScene.hfov}
+                            onChange={(e) =>
+                              updateNewSceneField("hfov", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="col-12 d-flex justify-content-end">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary rounded-4"
+                            onClick={createScene}
+                          >
+                            Add Scene
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {showTourPreview && panoramicScenes.length > 0 && (
+                    <div className="mt-4">
+                      <PannellumTourPreview
+                        scenes={panoramicScenes}
+                        onCoordinatePick={handlePreviewCoordPick}
+                      />
+                      <div className="text-muted small mt-2">
+                        {lastPreviewCoords ? (
+                          <>
+                            Last click — Pitch:{" "}
+                            {lastPreviewCoords.pitch.toFixed(2)}°, Yaw:{" "}
+                            {lastPreviewCoords.yaw.toFixed(2)}°
+                          </>
+                        ) : (
+                          "Click inside the preview to capture pitch/yaw values."
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

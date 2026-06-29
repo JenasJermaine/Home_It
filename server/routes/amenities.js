@@ -4,6 +4,11 @@ import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
+const normalizeAmenityName = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
 //localhost:8090/api/amenities/...
 
 // Get all amenities
@@ -26,8 +31,28 @@ router.get('/', async (req, res) => {
 // Create a new amenity
 router.post('/', auth, async (req, res) => {
   try {
+    const name = String(req.body.name || "").trim();
+    if (!name) {
+      return res.status(400).json({ error: "Amenity name is required" });
+    }
+
+    const existingAmenities = await db.Amenity.findAll({
+      attributes: ['id', 'name']
+    });
+    const normalizedName = normalizeAmenityName(name);
+    const existingAmenity = existingAmenities.find(
+      (amenity) => normalizeAmenityName(amenity.name) === normalizedName
+    );
+
+    if (existingAmenity) {
+      return res.status(200).json({
+        message: "Amenity already exists",
+        data: existingAmenity
+      });
+    }
+
     const amenity = await db.Amenity.create({
-      name: req.body.name
+      name
     });
 
     res.status(201).json({
